@@ -5,9 +5,6 @@ const nextConfig = {
     domains: ['blob.v0.dev'],
     unoptimized: true,
   },
-  experimental: {
-    optimizeCss: true,
-  },
   compress: true,
   poweredByHeader: false,
   generateEtags: false,
