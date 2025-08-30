@@ -8,7 +8,15 @@ import "./globals.css"
 
 export const metadata: Metadata = {
   title: "Consultório Dr. Marcos Rocha - Sistema Interno",
-  description: "Sistema interno de gestão para consultório odontológico",
+  description:
+    "Sistema interno de gestão para consultório odontológico Dr. Marcos Rocha. Acesso seguro a formulários, prontuários e ferramentas administrativas.",
+  keywords: "consultório odontológico, sistema interno, Dr. Marcos Rocha, gestão dental, prontuários",
+  authors: [{ name: "Dr. Marcos Rocha" }],
+  creator: "Dr. Marcos Rocha",
+  publisher: "Consultório Dr. Marcos Rocha",
+  robots: "noindex, nofollow", // Private system - prevent search engine indexing
+  viewport: "width=device-width, initial-scale=1",
+  themeColor: "#1b2370",
   generator: "v0.app",
 }
 
@@ -19,8 +27,20 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR">
-      <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
-        <Suspense fallback={null}>{children}</Suspense>
+      <head>
+        <meta name="robots" content="noindex, nofollow" />
+        <meta name="theme-color" content="#1b2370" />
+      </head>
+      <body className={`font-sans antialiased ${GeistSans.variable} ${GeistMono.variable}`}>
+        <Suspense
+          fallback={
+            <div className="min-h-screen bg-[#1b2370] flex items-center justify-center">
+              <div className="text-white">Carregando...</div>
+            </div>
+          }
+        >
+          {children}
+        </Suspense>
         <Analytics />
       </body>
     </html>
