@@ -210,14 +210,6 @@ export default function DentalOfficeSystem() {
     confirmPassword: "",
   })
 
-  const [setupForm, setSetupForm] = useState({
-    username: "",
-    password: "",
-    confirmPassword: "",
-    name: "",
-  })
-  const [isSetupComplete, setIsSetupComplete] = useState(false)
-
   const exportData = () => {
     try {
       const data = {
@@ -315,7 +307,6 @@ export default function DentalOfficeSystem() {
       const savedUser = localStorage.getItem("currentUser")
       const savedUsers = localStorage.getItem("users")
       const initialized = localStorage.getItem("systemInitialized")
-      const setupComplete = localStorage.getItem("setupComplete")
 
       if (savedUser) {
         setCurrentUser(JSON.parse(savedUser))
@@ -328,7 +319,6 @@ export default function DentalOfficeSystem() {
       }
 
       setIsInitialized(initialized === "true")
-      setIsSetupComplete(setupComplete === "true")
     }
   }, [])
 
@@ -627,43 +617,6 @@ export default function DentalOfficeSystem() {
     })
   }
 
-  const handleSetup = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (setupForm.password !== setupForm.confirmPassword) {
-      alert("As senhas não coincidem")
-      return
-    }
-
-    if (setupForm.password.length < 6) {
-      alert("A senha deve ter pelo menos 6 caracteres")
-      return
-    }
-
-    const hashedPassword = await hashPassword(setupForm.password)
-
-    const adminUser: User = {
-      id: "1",
-      username: setupForm.username,
-      password: hashedPassword,
-      role: "admin",
-      name: setupForm.name,
-    }
-
-    const newUsers = [adminUser]
-    setUsers(newUsers)
-    setCurrentUser(adminUser)
-    setIsSetupComplete(true)
-
-    if (typeof window !== "undefined") {
-      localStorage.setItem("users", JSON.stringify(newUsers))
-      localStorage.setItem("currentUser", JSON.stringify(adminUser))
-      localStorage.setItem("setupComplete", "true")
-    }
-
-    setSetupForm({ username: "", password: "", confirmPassword: "", name: "" })
-  }
-
   if (!isInitialized) {
     return (
       <div className="min-h-screen bg-[#1b2370] flex items-center justify-center p-4">
@@ -743,81 +696,7 @@ export default function DentalOfficeSystem() {
   }
 
   if (!currentUser) {
-    return !isSetupComplete ? (
-      <div className="min-h-screen bg-[#1b2370] flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-8 shadow-2xl">
-            <div className="text-center mb-8">
-              <img
-                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/imagem_2025-08-29_174713093-msrQ9bJuiSdiyhTAjU8jANzDbENqSc.png"
-                alt="Logo"
-                className="w-20 h-20 mx-auto mb-4"
-              />
-              <h1 className="text-2xl font-bold text-white mb-2">Configuração Inicial</h1>
-              <p className="text-white/80">Crie o usuário administrador</p>
-            </div>
-
-            <form onSubmit={handleSetup} className="space-y-6">
-              <div>
-                <label className="block text-white/90 text-sm font-medium mb-2">Nome Completo</label>
-                <input
-                  type="text"
-                  value={setupForm.name}
-                  onChange={(e) => setSetupForm({ ...setupForm, name: e.target.value })}
-                  className="w-full px-4 py-3 backdrop-blur-md bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-transparent"
-                  placeholder="Digite seu nome completo"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-white/90 text-sm font-medium mb-2">Nome de Usuário</label>
-                <input
-                  type="text"
-                  value={setupForm.username}
-                  onChange={(e) => setSetupForm({ ...setupForm, username: e.target.value })}
-                  className="w-full px-4 py-3 backdrop-blur-md bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-transparent"
-                  placeholder="Digite o nome de usuário"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-white/90 text-sm font-medium mb-2">Senha</label>
-                <input
-                  type="password"
-                  value={setupForm.password}
-                  onChange={(e) => setSetupForm({ ...setupForm, password: e.target.value })}
-                  className="w-full px-4 py-3 backdrop-blur-md bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-transparent"
-                  placeholder="Digite uma senha segura"
-                  required
-                  minLength={6}
-                />
-              </div>
-
-              <div>
-                <label className="block text-white/90 text-sm font-medium mb-2">Confirmar Senha</label>
-                <input
-                  type="password"
-                  value={setupForm.confirmPassword}
-                  onChange={(e) => setSetupForm({ ...setupForm, confirmPassword: e.target.value })}
-                  className="w-full px-4 py-3 backdrop-blur-md bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-transparent"
-                  placeholder="Confirme a senha"
-                  required
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full bg-gradient-to-r from-amber-500 to-amber-600 text-white py-3 px-6 rounded-xl font-semibold hover:from-amber-600 hover:to-amber-700 transition-all duration-200 shadow-lg"
-              >
-                Criar Administrador
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
-    ) : (
+    return (
       <div className="min-h-screen bg-[#1b2370] flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-8 shadow-2xl">
