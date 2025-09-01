@@ -1,5 +1,5 @@
 import type React from "react"
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { GeistSans } from "geist/font/sans"
 import { GeistMono } from "geist/font/mono"
 import { Analytics } from "@vercel/analytics/next"
@@ -15,9 +15,13 @@ export const metadata: Metadata = {
   creator: "Dr. Marcos Rocha",
   publisher: "Consultório Dr. Marcos Rocha",
   robots: "noindex, nofollow", // Private system - prevent search engine indexing
-  viewport: "width=device-width, initial-scale=1",
-  themeColor: "#1b2370",
   generator: "v0.app",
+}
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#1b2370",
 }
 
 export default function RootLayout({
@@ -29,7 +33,6 @@ export default function RootLayout({
     <html lang="pt-BR">
       <head>
         <meta name="robots" content="noindex, nofollow" />
-        <meta name="theme-color" content="#1b2370" />
       </head>
       <body className={`font-sans antialiased ${GeistSans.variable} ${GeistMono.variable}`}>
         <Suspense
