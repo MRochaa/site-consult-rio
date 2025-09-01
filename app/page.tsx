@@ -190,9 +190,7 @@ export default function DentalOfficeSystem() {
   const [isLoading, setIsLoading] = useState(false)
   const [currentView, setCurrentView] = useState<"home" | "admin" | "users" | "links" | "settings">("home")
   const [siteTitle, setSiteTitle] = useState("Consultório Dr. Marcos Rocha")
-  const [logoUrl, setLogoUrl] = useState(
-    "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/imagem_2025-08-29_174713093-msrQ9bJuiSdiyhTAjU8jANzDbENqSc.png",
-  )
+  const [logoUrl, setLogoUrl] = useState("/dental-office-logo.png")
   const [editingLink, setEditingLink] = useState<LinkItem | null>(null)
   const [linkForm, setLinkForm] = useState({
     name: "",

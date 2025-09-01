@@ -7,15 +7,12 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "next lint",
-    "start": "node .next/standalone/server.js",
+    "start": "next start",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@radix-ui/react-label": "latest",
     "@radix-ui/react-slot": "latest",
-    "@remix-run/react": "latest",
-    "@sveltejs/kit": "latest",
-    "@vercel/analytics": "latest",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "geist": "latest",
@@ -24,11 +21,8 @@
     "next-themes": "latest",
     "react": "^19",
     "react-dom": "^19",
-    "svelte": "latest",
     "tailwind-merge": "^2.5.5",
-    "tailwindcss-animate": "^1.0.7",
-    "vue": "latest",
-    "vue-router": "latest"
+    "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.9",
