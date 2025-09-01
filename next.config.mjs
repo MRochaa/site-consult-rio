@@ -3,10 +3,7 @@ const nextConfig = {
   output: 'standalone',
   images: {
     domains: ['blob.v0.dev'],
-    unoptimized: true, // Updated from false to true
-  },
-  experimental: {
-    optimizeCss: true,
+    unoptimized: true,
   },
   compress: true,
   poweredByHeader: false,
@@ -17,6 +14,7 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  trailingSlash: false,
 }
 
 export default nextConfig
