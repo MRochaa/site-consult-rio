@@ -209,13 +209,14 @@ export default function DentalOfficeSystem() {
     role: "user" as "admin" | "user",
     confirmPassword: "",
   })
-  const [isSetupComplete, setIsSetupComplete] = useState(false)
+
   const [setupForm, setSetupForm] = useState({
-    name: "",
     username: "",
     password: "",
     confirmPassword: "",
+    name: "",
   })
+  const [isSetupComplete, setIsSetupComplete] = useState(false)
 
   const exportData = () => {
     try {
@@ -314,7 +315,7 @@ export default function DentalOfficeSystem() {
       const savedUser = localStorage.getItem("currentUser")
       const savedUsers = localStorage.getItem("users")
       const initialized = localStorage.getItem("systemInitialized")
-      const setup = localStorage.getItem("setupComplete")
+      const setupComplete = localStorage.getItem("setupComplete")
 
       if (savedUser) {
         setCurrentUser(JSON.parse(savedUser))
@@ -327,7 +328,7 @@ export default function DentalOfficeSystem() {
       }
 
       setIsInitialized(initialized === "true")
-      setIsSetupComplete(setup === "true")
+      setIsSetupComplete(setupComplete === "true")
     }
   }, [])
 
@@ -572,39 +573,47 @@ export default function DentalOfficeSystem() {
 
   const handleInitialization = async (e: React.FormEvent) => {
     e.preventDefault()
+    setIsLoading(true)
 
-    if (initForm.password !== initForm.confirmPassword) {
-      alert("As senhas não coincidem")
-      return
+    try {
+      if (initForm.password !== initForm.confirmPassword) {
+        alert("As senhas não coincidem")
+        return
+      }
+
+      if (initForm.password.length < 8) {
+        alert("A senha deve ter pelo menos 8 caracteres")
+        return
+      }
+
+      const hashedPassword = await hashPassword(initForm.password)
+
+      const adminUser: User = {
+        id: "1",
+        username: initForm.username,
+        password: hashedPassword,
+        role: "admin",
+        name: initForm.name,
+      }
+
+      const newUsers = [adminUser]
+      setUsers(newUsers)
+      setCurrentUser(adminUser)
+      setIsInitialized(true)
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("users", JSON.stringify(newUsers))
+        localStorage.setItem("currentUser", JSON.stringify(adminUser))
+        localStorage.setItem("systemInitialized", "true")
+      }
+
+      setInitForm({ username: "", password: "", confirmPassword: "", name: "" })
+    } catch (error) {
+      console.error("Erro na inicialização:", error)
+      alert("Erro ao inicializar o sistema. Tente novamente.")
+    } finally {
+      setIsLoading(false)
     }
-
-    if (initForm.password.length < 8) {
-      alert("A senha deve ter pelo menos 8 caracteres")
-      return
-    }
-
-    const hashedPassword = await hashPassword(initForm.password)
-
-    const adminUser: User = {
-      id: "1",
-      username: initForm.username,
-      password: hashedPassword,
-      role: "admin",
-      name: initForm.name,
-    }
-
-    const newUsers = [adminUser]
-    setUsers(newUsers)
-    setCurrentUser(adminUser)
-    setIsInitialized(true)
-
-    if (typeof window !== "undefined") {
-      localStorage.setItem("users", JSON.stringify(newUsers))
-      localStorage.setItem("currentUser", JSON.stringify(adminUser))
-      localStorage.setItem("systemInitialized", "true")
-    }
-
-    setInitForm({ username: "", password: "", confirmPassword: "", name: "" })
   }
 
   const handleEditUser = (user: User) => {
@@ -657,73 +666,77 @@ export default function DentalOfficeSystem() {
 
   if (!isInitialized) {
     return (
-      <div className="min-h-screen" style={{ backgroundColor: "#1b2370" }}>
-        <div className="container mx-auto px-4 py-8">
-          <div className="flex items-center justify-center min-h-screen">
-            <Card className="w-full max-w-md bg-white/10 backdrop-blur-md border border-white/20">
-              <CardHeader className="text-center">
-                <div className="flex justify-center mb-4">
-                  <img
-                    src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/imagem_2025-08-29_174713093-msrQ9bJuiSdiyhTAjU8jANzDbENqSc.png"
-                    alt="Dr. Marcos Rocha Logo"
-                    className="h-16 w-auto"
+      <div className="min-h-screen bg-[#1b2370] flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <Card className="backdrop-blur-md bg-white/10 border border-white/20 shadow-2xl">
+            <CardHeader className="text-center">
+              <div className="flex justify-center mb-4">
+                <img src={logoUrl || "/placeholder.svg"} alt="Dr. Marcos Rocha Logo" className="h-20 w-auto" />
+              </div>
+              <CardTitle className="text-white text-2xl font-bold">Configuração Inicial</CardTitle>
+              <CardDescription className="text-white/80">Configure o usuário administrador do sistema</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleInitialization} className="space-y-4">
+                <div>
+                  <Label className="text-white/90 text-sm font-medium">Nome Completo</Label>
+                  <Input
+                    type="text"
+                    placeholder="Digite seu nome completo"
+                    value={initForm.name}
+                    onChange={(e) => setInitForm({ ...initForm, name: e.target.value })}
+                    required
+                    className="mt-1 bg-white/10 border-white/20 text-white placeholder:text-white/60 focus:ring-2 focus:ring-amber-400/50"
+                    disabled={isLoading}
                   />
                 </div>
-                <CardTitle className="text-white text-2xl">Configuração Inicial</CardTitle>
-                <CardDescription className="text-white/80">
-                  Configure o usuário administrador do sistema
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleInitialization} className="space-y-4">
-                  <div>
-                    <Input
-                      type="text"
-                      placeholder="Nome completo"
-                      value={initForm.name}
-                      onChange={(e) => setInitForm({ ...initForm, name: e.target.value })}
-                      required
-                      className="bg-white/10 border-white/20 text-white placeholder:text-white/60"
-                    />
-                  </div>
-                  <div>
-                    <Input
-                      type="text"
-                      placeholder="Nome de usuário"
-                      value={initForm.username}
-                      onChange={(e) => setInitForm({ ...initForm, username: e.target.value })}
-                      required
-                      className="bg-white/10 border-white/20 text-white placeholder:text-white/60"
-                    />
-                  </div>
-                  <div>
-                    <Input
-                      type="password"
-                      placeholder="Senha (mínimo 8 caracteres)"
-                      value={initForm.password}
-                      onChange={(e) => setInitForm({ ...initForm, password: e.target.value })}
-                      required
-                      minLength={8}
-                      className="bg-white/10 border-white/20 text-white placeholder:text-white/60"
-                    />
-                  </div>
-                  <div>
-                    <Input
-                      type="password"
-                      placeholder="Confirmar senha"
-                      value={initForm.confirmPassword}
-                      onChange={(e) => setInitForm({ ...initForm, confirmPassword: e.target.value })}
-                      required
-                      className="bg-white/10 border-white/20 text-white placeholder:text-white/60"
-                    />
-                  </div>
-                  <Button type="submit" className="w-full bg-amber-600 hover:bg-amber-700 text-white">
-                    Inicializar Sistema
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </div>
+                <div>
+                  <Label className="text-white/90 text-sm font-medium">Nome de Usuário</Label>
+                  <Input
+                    type="text"
+                    placeholder="Digite o nome de usuário"
+                    value={initForm.username}
+                    onChange={(e) => setInitForm({ ...initForm, username: e.target.value })}
+                    required
+                    className="mt-1 bg-white/10 border-white/20 text-white placeholder:text-white/60 focus:ring-2 focus:ring-amber-400/50"
+                    disabled={isLoading}
+                  />
+                </div>
+                <div>
+                  <Label className="text-white/90 text-sm font-medium">Senha</Label>
+                  <Input
+                    type="password"
+                    placeholder="Senha (mínimo 8 caracteres)"
+                    value={initForm.password}
+                    onChange={(e) => setInitForm({ ...initForm, password: e.target.value })}
+                    required
+                    minLength={8}
+                    className="mt-1 bg-white/10 border-white/20 text-white placeholder:text-white/60 focus:ring-2 focus:ring-amber-400/50"
+                    disabled={isLoading}
+                  />
+                </div>
+                <div>
+                  <Label className="text-white/90 text-sm font-medium">Confirmar Senha</Label>
+                  <Input
+                    type="password"
+                    placeholder="Confirme a senha"
+                    value={initForm.confirmPassword}
+                    onChange={(e) => setInitForm({ ...initForm, confirmPassword: e.target.value })}
+                    required
+                    className="mt-1 bg-white/10 border-white/20 text-white placeholder:text-white/60 focus:ring-2 focus:ring-amber-400/50"
+                    disabled={isLoading}
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-semibold py-3 transition-all duration-200 shadow-lg"
+                  disabled={isLoading}
+                >
+                  {isLoading ? "Inicializando..." : "Inicializar Sistema"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
         </div>
       </div>
     )
