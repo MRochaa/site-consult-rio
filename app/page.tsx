@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,6 +9,15 @@ import { Settings, LogOut, Link, Users, FileText, Database, Download, Upload, Al
 import Image from "next/image"
 import { FileCheck, ClipboardList, ExternalLink } from "lucide-react"
 import { Label } from "@/components/ui/label"
+
+// AUTO-INICIALIZAÇÃO PARA DEPLOY NO COOLIFY
+// O sistema criará automaticamente um usuário admin na primeira execução
+const AUTO_INIT = true
+const AUTO_ADMIN = {
+  username: "admin",
+  password: "MudeEstaSenha123!",
+  name: "Administrador"
+}
 
 const hashPassword = async (password: string): Promise<string> => {
   const encoder = new TextEncoder()
@@ -28,7 +36,7 @@ const verifyPassword = async (password: string, hash: string): Promise<boolean> 
 interface User {
   id: string
   username: string
-  password: string // Now stores hashed password
+  password: string
   role: "admin" | "user"
   name: string
 }
@@ -107,8 +115,8 @@ interface RateLimitData {
 }
 
 const MAX_ATTEMPTS = 5
-const BLOCK_DURATION = 15 * 60 * 1000 // 15 minutes
-const ATTEMPT_WINDOW = 5 * 60 * 1000 // 5 minutes
+const BLOCK_DURATION = 15 * 60 * 1000
+const ATTEMPT_WINDOW = 5 * 60 * 1000
 
 const getRateLimitData = (): RateLimitData => {
   if (typeof window === "undefined") return { attempts: [] }
@@ -134,25 +142,21 @@ const addLoginAttempt = (username: string, success: boolean) => {
   const data = getRateLimitData()
   const now = Date.now()
 
-  // Clean old attempts (older than window)
   data.attempts = data.attempts.filter((attempt) => now - attempt.timestamp < ATTEMPT_WINDOW)
 
   if (!success) {
-    // Add failed attempt
     data.attempts.push({
       timestamp: now,
-      ip: "local", // In a real app, you'd get the actual IP
+      ip: "local",
       username,
     })
 
-    // Check if should block
     const recentAttempts = data.attempts.filter((attempt) => now - attempt.timestamp < ATTEMPT_WINDOW)
 
     if (recentAttempts.length >= MAX_ATTEMPTS) {
       data.blockedUntil = now + BLOCK_DURATION
     }
   } else {
-    // Clear attempts on successful login
     data.attempts = []
     delete data.blockedUntil
   }
@@ -171,7 +175,6 @@ const handleError = (error: Error, context: string) => {
   if (!isProduction) {
     console.error(`[${context}]`, error)
   }
-  // In production, could send to error tracking service
 }
 
 export default function DentalOfficeSystem() {
@@ -207,6 +210,79 @@ export default function DentalOfficeSystem() {
     role: "user" as "admin" | "user",
     confirmPassword: "",
   })
+
+  // Auto-inicialização para produção/Coolify
+  useEffect(() => {
+    const initializeSystem = async () => {
+      if (typeof window !== "undefined") {
+        const savedUser = localStorage.getItem("currentUser")
+        const savedUsers = localStorage.getItem("users")
+        const initialized = localStorage.getItem("systemInitialized")
+
+        if (savedUser) {
+          setCurrentUser(JSON.parse(savedUser))
+        }
+
+        if (savedUsers) {
+          setUsers(JSON.parse(savedUsers))
+        } else {
+          setUsers(defaultUsers)
+        }
+
+        // AUTO-INICIALIZAÇÃO PARA COOLIFY
+        if (AUTO_INIT && !initialized) {
+          console.log("🚀 Sistema inicializando automaticamente...")
+          
+          const hashedPassword = await hashPassword(AUTO_ADMIN.password)
+          const adminUser: User = {
+            id: "1",
+            username: AUTO_ADMIN.username,
+            password: hashedPassword,
+            role: "admin",
+            name: AUTO_ADMIN.name,
+          }
+
+          const newUsers = [adminUser]
+          setUsers(newUsers)
+          setIsInitialized(true)
+          
+          localStorage.setItem("users", JSON.stringify(newUsers))
+          localStorage.setItem("systemInitialized", "true")
+          
+          console.log("✅ Sistema inicializado com sucesso!")
+          console.log("📌 Use admin / MudeEstaSenha123! para fazer login")
+        } else {
+          setIsInitialized(initialized === "true")
+        }
+      }
+    }
+
+    initializeSystem()
+  }, [])
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("users", JSON.stringify(users))
+    }
+  }, [users])
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("links", JSON.stringify(links))
+    }
+  }, [links])
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("siteTitle", siteTitle)
+    }
+  }, [siteTitle])
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("logoUrl", logoUrl)
+    }
+  }, [logoUrl])
 
   const exportData = () => {
     try {
@@ -245,7 +321,6 @@ export default function DentalOfficeSystem() {
       try {
         const data = JSON.parse(e.target?.result as string)
 
-        // Validate data structure
         if (!data.users || !Array.isArray(data.users)) {
           alert("Arquivo de backup inválido: dados de usuários não encontrados")
           return
@@ -256,7 +331,6 @@ export default function DentalOfficeSystem() {
           return
         }
 
-        // Confirm import
         if (
           confirm(
             `Importar backup de ${data.exportDate ? new Date(data.exportDate).toLocaleDateString() : "data desconhecida"}? Isso substituirá todos os dados atuais.`,
@@ -270,7 +344,6 @@ export default function DentalOfficeSystem() {
               "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/imagem_2025-08-29_174713093-msrQ9bJuiSdiyhTAjU8jANzDbENqSc.png",
           )
 
-          // Update localStorage
           if (typeof window !== "undefined") {
             localStorage.setItem("users", JSON.stringify(data.users))
             localStorage.setItem("links", JSON.stringify(data.links))
@@ -296,53 +369,8 @@ export default function DentalOfficeSystem() {
       alert("Erro ao ler o arquivo")
     }
 
-    // Reset input
     event.target.value = ""
   }
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const savedUser = localStorage.getItem("currentUser")
-      const savedUsers = localStorage.getItem("users")
-      const initialized = localStorage.getItem("systemInitialized")
-
-      if (savedUser) {
-        setCurrentUser(JSON.parse(savedUser))
-      }
-
-      if (savedUsers) {
-        setUsers(JSON.parse(savedUsers))
-      } else {
-        setUsers(defaultUsers)
-      }
-
-      setIsInitialized(initialized === "true")
-    }
-  }, [])
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("users", JSON.stringify(users))
-    }
-  }, [users])
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("links", JSON.stringify(links))
-    }
-  }, [links])
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("siteTitle", siteTitle)
-    }
-  }, [siteTitle])
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("logoUrl", logoUrl)
-    }
-  }, [logoUrl])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -350,7 +378,6 @@ export default function DentalOfficeSystem() {
     try {
       setLoginError("")
 
-      // Check if blocked
       const blockStatus = isBlocked()
       if (blockStatus.blocked) {
         const remainingTime = formatTime(blockStatus.remainingTime!)
@@ -360,7 +387,6 @@ export default function DentalOfficeSystem() {
 
       setIsLoading(true)
 
-      // Add delay to prevent rapid attempts
       await new Promise((resolve) => setTimeout(resolve, 1000))
 
       for (const user of users) {
@@ -379,7 +405,6 @@ export default function DentalOfficeSystem() {
         }
       }
 
-      // Failed login
       addLoginAttempt(loginForm.username, false)
       setLoginError("Credenciais inválidas")
       setIsLoading(false)
@@ -615,7 +640,8 @@ export default function DentalOfficeSystem() {
     })
   }
 
-  if (!isInitialized) {
+  // Não mostra tela de inicialização se AUTO_INIT está ativo
+  if (!isInitialized && !AUTO_INIT) {
     return (
       <div className="min-h-screen bg-[#1b2370] flex items-center justify-center p-4">
         <div className="w-full max-w-md">
@@ -1292,7 +1318,7 @@ export default function DentalOfficeSystem() {
                         value={userForm.password}
                         onChange={(e) => setUserForm((prev) => ({ ...prev, password: e.target.value }))}
                         className="backdrop-blur-sm bg-white/10 border-white/20 text-white placeholder:text-blue-200 focus:border-white/40"
-                        required
+                        required={!editingUser}
                       />
                     </div>
                     <div>
@@ -1323,7 +1349,7 @@ export default function DentalOfficeSystem() {
                         value={userForm.confirmPassword}
                         onChange={(e) => setUserForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
                         className="backdrop-blur-sm bg-white/10 border-white/20 text-white placeholder:text-blue-200 focus:border-white/40"
-                        required
+                        required={!editingUser}
                       />
                     </div>
                   </div>
