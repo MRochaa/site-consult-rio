@@ -8,7 +8,8 @@ WORKDIR /app
 
 # Install dependencies based on the preferred package manager
 COPY package.json package-lock.json* ./
-RUN npm ci
+# Remove package-lock.json if exists and do fresh install
+RUN rm -f package-lock.json && npm install
 
 # Rebuild the source code only when needed
 FROM base AS builder
