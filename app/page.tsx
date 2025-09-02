@@ -20,12 +20,19 @@ const AUTO_ADMIN = {
 }
 
 const hashPassword = async (password: string): Promise<string> => {
-  const encoder = new TextEncoder()
-  const data = encoder.encode(password)
-  const hash = await crypto.subtle.digest("SHA-256", data)
-  return Array.from(new Uint8Array(hash))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("")
+  if (typeof window !== "undefined" && window.crypto?.subtle) {
+    // Ambiente navegador
+    const encoder = new TextEncoder()
+    const data = encoder.encode(password)
+    const hash = await window.crypto.subtle.digest("SHA-256", data)
+    return Array.from(new Uint8Array(hash))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("")
+  } else {
+    // Ambiente Node (Coolify / SSR)
+    const { createHash } = await import("crypto")
+    return createHash("sha256").update(password).digest("hex")
+  }
 }
 
 const verifyPassword = async (password: string, hash: string): Promise<boolean> => {
