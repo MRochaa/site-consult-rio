@@ -1,12 +1,21 @@
-const Database = require('better-sqlite3');
-const bcrypt = require('bcryptjs');
-const path = require('path');
 const fs = require('fs');
+const path = require('path');
+
+// Para funcionar tanto localmente quanto no Docker
+let Database, bcrypt;
+
+try {
+  Database = require('better-sqlite3');
+  bcrypt = require('bcryptjs');
+} catch (error) {
+  console.log('Dependências ainda não instaladas, pulando inicialização do banco...');
+  process.exit(0);
+}
 
 // Criar diretório data se não existir
 const dataDir = path.join(process.cwd(), 'data');
 if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir);
+  fs.mkdirSync(dataDir, { recursive: true });
 }
 
 // Criar ou conectar ao banco
