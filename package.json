@@ -1,19 +1,23 @@
 {
   "name": "dental-office-system",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Sistema interno para consultório odontológico Dr. Marcos Rocha",
+  "description": "Sistema interno para consultório odontológico Dr. Marcos Rocha com banco de dados",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "db:init": "node scripts/init-db.js"
   },
   "dependencies": {
     "@radix-ui/react-label": "^2.0.2",
     "@radix-ui/react-slot": "^1.0.2",
+    "better-sqlite3": "^11.0.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "bcryptjs": "^2.4.3",
+    "jose": "^5.2.0",
     "lucide-react": "^0.454.0",
     "next": "15.2.4",
     "react": "^19.0.0",
@@ -22,6 +26,8 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/better-sqlite3": "^7.6.9",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
