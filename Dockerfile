@@ -6,10 +6,10 @@ RUN apk add --no-cache libc6-compat python3 make g++
 WORKDIR /app
 
 # Copy package files
-COPY package.json package-lock.json* ./
+COPY package*.json ./
 
 # Install dependencies including native modules
-RUN npm ci --include=dev
+RUN npm install --legacy-peer-deps
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -19,15 +19,15 @@ COPY . .
 
 # Initialize database and build Next.js
 RUN npm run db:init
-ENV NEXT_TELEMETRY_DISABLED 1
+ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
 # Production image
 FROM base AS runner
 WORKDIR /app
 
-ENV NODE_ENV production
-ENV NEXT_TELEMETRY_DISABLED 1
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 
 # Install SQLite runtime dependencies
 RUN apk add --no-cache sqlite
@@ -52,8 +52,8 @@ USER nextjs
 
 EXPOSE 3000
 
-ENV PORT 3000
-ENV HOSTNAME "0.0.0.0"
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
 # Create volume for persistent database
 VOLUME ["/app/data"]
