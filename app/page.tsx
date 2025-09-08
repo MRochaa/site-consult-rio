@@ -1265,44 +1265,52 @@ export default function DentalOfficeSystem() {
           </div>
 
           {/* Painel Admin (visível apenas para admins logados) */}
-          {currentUser?.role === "admin" && (
-            <Card className="backdrop-blur-md bg-white/10 border-white/20 shadow-xl">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center">
-                  <Settings className="h-5 w-5 mr-2" />
-                  Ações Rápidas - Administrador
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-3 md:grid-cols-3">
-                  <Button
-                    variant="outline"
-                    className="justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white"
-                    onClick={() => setCurrentView("links")}
-                  >
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Gerenciar Links
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white"
-                    onClick={() => setCurrentView("users")}
-                  >
-                    <Users className="h-4 w-4 mr-2" />
-                    Gerenciar Usuários
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white"
-                    onClick={() => setCurrentView("settings")}
-                  >
-                    <Settings className="h-4 w-4 mr-2" />
-                    Configurações
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+{currentUser?.role === "admin" && (
+  <Card className="backdrop-blur-md bg-white/10 border-white/20 shadow-xl">
+    <CardHeader>
+      <CardTitle className="text-white flex items-center">
+        <Settings className="h-5 w-5 mr-2" />
+        Ações Rápidas - Administrador
+      </CardTitle>
+    </CardHeader>
+    <CardContent>
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <Button
+          variant="outline"
+          className="justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white"
+          onClick={() => setCurrentView("links")}
+        >
+          <ExternalLink className="h-4 w-4 mr-2" />
+          Gerenciar Links
+        </Button>
+        <Button
+          variant="outline"
+          className="justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white"
+          onClick={() => setCurrentView("users")}
+        >
+          <Users className="h-4 w-4 mr-2" />
+          Gerenciar Usuários
+        </Button>
+        <Button
+          variant="outline"
+          className="justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white"
+          onClick={() => setCurrentView("settings")}
+        >
+          <Settings className="h-4 w-4 mr-2" />
+          Configurações
+        </Button>
+        <Button
+          variant="outline"
+          className="justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white"
+          onClick={() => window.location.href = '/admin/forms'}
+        >
+          <FileText className="h-4 w-4 mr-2" />
+          Formulários Dinâmicos
+        </Button>
+      </div>
+    </CardContent>
+  </Card>
+)}
         </div>
       </main>
     </div>
