@@ -1302,7 +1302,7 @@ export default function DentalOfficeSystem() {
         <Button
           variant="outline"
           className="justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white"
-          onClick={() => window.location.href = '/admin/forms'}
+          onClick={() => router.push('/admin/forms')}
         >
           <FileText className="h-4 w-4 mr-2" />
           Formulários Dinâmicos
