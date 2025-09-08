@@ -16,6 +16,7 @@ export default function FormsAdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
+  const [currentUser, setCurrentUser] = useState<any>(null)
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -38,30 +39,67 @@ export default function FormsAdminPage() {
 
   const checkAuthAndFetchForms = async () => {
     try {
-      // Primeiro verificar se está autenticado
-      const authResponse = await fetch('/api/auth')
-      const authData = await authResponse.json()
+      // Verificar autenticação com cookies incluídos
+      const authResponse = await fetch('/api/auth', {
+        method: 'GET',
+        credentials: 'include', // Importante: incluir cookies
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
       
-      if (!authData.user || authData.user.role !== 'admin') {
+      if (!authResponse.ok) {
         setIsAuthenticated(false)
-        setError("Você precisa estar logado como administrador para acessar esta página")
+        setError("Erro ao verificar autenticação")
         setIsLoading(false)
         return
       }
 
+      const authData = await authResponse.json()
+      console.log('Auth data:', authData) // Debug
+      
+      if (!authData.user) {
+        setIsAuthenticated(false)
+        setError("Você precisa fazer login para acessar esta página")
+        setIsLoading(false)
+        return
+      }
+
+      if (authData.user.role !== 'admin') {
+        setIsAuthenticated(false)
+        setError("Apenas administradores podem acessar esta página")
+        setIsLoading(false)
+        return
+      }
+
+      setCurrentUser(authData.user)
       setIsAuthenticated(true)
       
-      // Se autenticado, buscar formulários
-      const formsResponse = await fetch('/api/forms')
-      const formsData = await formsResponse.json()
+      // Buscar formulários com credenciais
+      const formsResponse = await fetch('/api/forms', {
+        method: 'GET',
+        credentials: 'include', // Importante: incluir cookies
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
       
       if (!formsResponse.ok) {
-        setError(formsData.error || "Erro ao carregar formulários")
+        if (formsResponse.status === 401) {
+          setIsAuthenticated(false)
+          setError("Sessão expirada. Por favor, faça login novamente.")
+        } else {
+          const errorData = await formsResponse.json()
+          setError(errorData.error || "Erro ao carregar formulários")
+        }
         setForms([])
-      } else if (Array.isArray(formsData)) {
-        setForms(formsData)
       } else {
-        setForms([])
+        const formsData = await formsResponse.json()
+        if (Array.isArray(formsData)) {
+          setForms(formsData)
+        } else {
+          setForms([])
+        }
       }
     } catch (error) {
       console.error('Error:', error)
@@ -79,6 +117,7 @@ export default function FormsAdminPage() {
       
       const response = await fetch(url, {
         method,
+        credentials: 'include', // Incluir cookies
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       })
@@ -137,7 +176,9 @@ export default function FormsAdminPage() {
 
   const exportSubmissions = async (formId: string) => {
     try {
-      const response = await fetch(`/api/forms/${formId}/submissions`)
+      const response = await fetch(`/api/forms/${formId}/submissions`, {
+        credentials: 'include'
+      })
       if (!response.ok) {
         throw new Error('Erro ao exportar submissões')
       }
@@ -163,7 +204,7 @@ export default function FormsAdminPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#1b2370] to-[#0f1a5c] flex items-center justify-center">
-        <div className="text-white">Carregando...</div>
+        <div className="text-white text-xl">Verificando autenticação...</div>
       </div>
     )
   }
@@ -180,19 +221,18 @@ export default function FormsAdminPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="bg-white/5 border border-white/10 rounded-lg p-3">
+              <p className="text-white/60 text-sm">
+                Se você já está logado, tente fazer login novamente. 
+                A sessão pode ter expirado.
+              </p>
+            </div>
             <Button
               onClick={() => router.push('/')}
               className="w-full bg-white/20 hover:bg-white/30 text-white backdrop-blur-sm border border-white/20"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Voltar ao Início
-            </Button>
-            <Button
-              onClick={() => router.push('/?login=true')}
-              className="w-full bg-amber-500/80 hover:bg-amber-500 text-white"
-            >
-              <LogIn className="h-4 w-4 mr-2" />
-              Fazer Login
             </Button>
           </CardContent>
         </Card>
@@ -206,8 +246,9 @@ export default function FormsAdminPage() {
       <div className="min-h-screen bg-gradient-to-br from-[#1b2370] to-[#0f1a5c] p-6">
         <div className="max-w-6xl mx-auto">
           <Card className="backdrop-blur-md bg-white/95">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>{editingForm ? 'Editar' : 'Criar'} Formulário</CardTitle>
+              <span className="text-sm text-gray-600">Logado como: {currentUser?.name}</span>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Informações do formulário */}
@@ -364,7 +405,10 @@ export default function FormsAdminPage() {
     <div className="min-h-screen bg-gradient-to-br from-[#1b2370] to-[#0f1a5c] p-6">
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-white">Gerenciar Formulários</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-white">Gerenciar Formulários</h1>
+            <p className="text-white/60 text-sm">Logado como: {currentUser?.name}</p>
+          </div>
           <div className="flex gap-2">
             <Button 
               onClick={() => router.push('/')}
