@@ -9,6 +9,7 @@ import { Settings, LogOut, Link, Users, FileText, Database, Download, Upload, Al
 import Image from "next/image"
 import { FileCheck, ClipboardList, ExternalLink } from "lucide-react"
 import { Label } from "@/components/ui/label"
+import { useRouter } from "next/navigation"
 
 interface User {
   id: string
@@ -27,6 +28,7 @@ interface LinkItem {
 }
 
 export default function DentalOfficeSystem() {
+  const router = useRouter()
   const [isInitialized, setIsInitialized] = useState(false)
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [users, setUsers] = useState<User[]>([])
