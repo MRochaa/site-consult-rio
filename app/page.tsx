@@ -84,15 +84,15 @@ export default function DentalOfficeSystem() {
   }
 
   const fetchLinks = async () => {
-    try {
-      const response = await fetch('/api/links')
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error)
-      setLinks(data)
-    } catch (error) {
-      console.error('Error fetching links:', error)
-    }
+  try {
+    const response = await AuthClient.fetchWithAuth('/api/links')
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error)
+    setLinks(data)
+  } catch (error) {
+    console.error('Error fetching links:', error)
   }
+}
 
   const fetchUsers = async () => {
   try {
@@ -230,29 +230,28 @@ export default function DentalOfficeSystem() {
   }
 
   const handleAddLink = async (e: React.FormEvent) => {
-    e.preventDefault()
-    try {
-      const response = await fetch('/api/links', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: linkForm.name,
-          subtitle: linkForm.subtitle,
-          url: linkForm.url,
-          is_public: linkForm.isPublic,
-          icon: linkForm.icon
-        })
+  e.preventDefault()
+  try {
+    const response = await AuthClient.fetchWithAuth('/api/links', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: linkForm.name,
+        subtitle: linkForm.subtitle,
+        url: linkForm.url,
+        is_public: linkForm.isPublic,
+        icon: linkForm.icon
       })
+    })
 
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error)
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error)
 
-      setLinkForm({ name: "", subtitle: "", url: "", isPublic: true, icon: "FileText" })
-      fetchLinks()
-    } catch (error) {
-      alert("Erro ao adicionar link: " + (error as Error).message)
-    }
+    setLinkForm({ name: "", subtitle: "", url: "", isPublic: true, icon: "FileText" })
+    fetchLinks()
+  } catch (error) {
+    alert("Erro ao adicionar link: " + (error as Error).message)
   }
+}
 
   const handleEditLink = (link: LinkItem) => {
     setEditingLink(link)
