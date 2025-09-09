@@ -265,33 +265,32 @@ export default function DentalOfficeSystem() {
   }
 
   const handleUpdateLink = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!editingLink) return
+  e.preventDefault()
+  if (!editingLink) return
 
-    try {
-      const response = await fetch('/api/links', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: editingLink.id,
-          name: linkForm.name,
-          subtitle: linkForm.subtitle,
-          url: linkForm.url,
-          is_public: linkForm.isPublic,
-          icon: linkForm.icon
-        })
+  try {
+    const response = await AuthClient.fetchWithAuth('/api/links', {
+      method: 'PUT',
+      body: JSON.stringify({
+        id: editingLink.id,
+        name: linkForm.name,
+        subtitle: linkForm.subtitle,
+        url: linkForm.url,
+        is_public: linkForm.isPublic,
+        icon: linkForm.icon
       })
+    })
 
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error)
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error)
 
-      setEditingLink(null)
-      setLinkForm({ name: "", subtitle: "", url: "", isPublic: true, icon: "FileText" })
-      fetchLinks()
-    } catch (error) {
-      alert("Erro ao atualizar link: " + (error as Error).message)
-    }
+    setEditingLink(null)
+    setLinkForm({ name: "", subtitle: "", url: "", isPublic: true, icon: "FileText" })
+    fetchLinks()
+  } catch (error) {
+    alert("Erro ao atualizar link: " + (error as Error).message)
   }
+}
 
   const handleDeleteLink = async (linkId: string) => {
     if (confirm("Tem certeza que deseja excluir este link?")) {
