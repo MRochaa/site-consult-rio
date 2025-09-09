@@ -10,6 +10,7 @@ import Image from "next/image"
 import { FileCheck, ClipboardList, ExternalLink } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
+import { AuthClient } from "@/lib/auth-client"
 
 interface User {
   id: string
