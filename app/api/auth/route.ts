@@ -31,25 +31,26 @@ export async function POST(request: NextRequest) {
       .setExpirationTime('24h')
       .sign(secret);
     
-    // Create response
+    // Create response with token in body AND cookie
     const response = NextResponse.json({
       user: {
         id: user.id,
         username: user.username,
         name: user.name,
         role: user.role
-      }
+      },
+      token: token // Incluir token na resposta
     });
 
-    // Set cookie with proper configuration
+    // Set cookie
     response.cookies.set({
       name: 'auth-token',
       value: token,
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax', // Changed from 'strict' to 'lax'
+      sameSite: 'lax',
       maxAge: 60 * 60 * 24, // 24 hours
-      path: '/' // Ensure cookie is available for all paths
+      path: '/'
     });
     
     return response;
@@ -64,14 +65,20 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    // Tentar pegar token do cookie primeiro
     const cookieStore = cookies();
-    const token = cookieStore.get('auth-token');
+    const cookieToken = cookieStore.get('auth-token');
+    
+    // Se não tiver no cookie, tentar pegar do header
+    const headerToken = request.headers.get('X-Auth-Token');
+    
+    const token = cookieToken?.value || headerToken;
     
     if (!token) {
       return NextResponse.json({ user: null });
     }
     
-    const { payload } = await jwtVerify(token.value, secret);
+    const { payload } = await jwtVerify(token, secret);
     
     return NextResponse.json({
       user: {
