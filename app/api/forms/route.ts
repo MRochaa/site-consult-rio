@@ -7,25 +7,40 @@ const secret = new TextEncoder().encode(
   process.env.JWT_SECRET || 'your-secret-key-change-this-in-production'
 );
 
-async function verifyAuth(request: NextRequest) {
-  const token = cookies().get('auth-token')?.value;
-  
-  if (!token) return null;
-  
+async function verifyAuth() {
   try {
-    const { payload } = await jwtVerify(token, secret);
+    const cookieStore = cookies();
+    const token = cookieStore.get('auth-token');
+    
+    if (!token) {
+      console.log('No token found in /api/forms');
+      return null;
+    }
+    
+    const { payload } = await jwtVerify(token.value, secret);
+    console.log('Auth verified in /api/forms:', payload);
     return payload;
-  } catch {
+  } catch (error) {
+    console.error('Auth verification error in /api/forms:', error);
     return null;
   }
 }
 
 export async function GET(request: NextRequest) {
-  const auth = await verifyAuth(request);
+  const auth = await verifyAuth();
   
-  if (!auth || auth.role !== 'admin') {
+  if (!auth) {
+    console.log('GET /api/forms - No auth');
     return NextResponse.json(
       { error: 'Não autorizado' },
+      { status: 401 }
+    );
+  }
+
+  if (auth.role !== 'admin') {
+    console.log('GET /api/forms - Not admin:', auth.role);
+    return NextResponse.json(
+      { error: 'Não autorizado - apenas administradores' },
       { status: 401 }
     );
   }
@@ -34,6 +49,7 @@ export async function GET(request: NextRequest) {
     const forms = getAllForms();
     return NextResponse.json(forms);
   } catch (error) {
+    console.error('Error fetching forms:', error);
     return NextResponse.json(
       { error: 'Erro ao buscar formulários' },
       { status: 500 }
@@ -42,7 +58,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await verifyAuth(request);
+  const auth = await verifyAuth();
   
   if (!auth || auth.role !== 'admin') {
     return NextResponse.json(
@@ -63,6 +79,7 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json(form);
   } catch (error) {
+    console.error('Error creating form:', error);
     return NextResponse.json(
       { error: 'Erro ao criar formulário' },
       { status: 500 }
