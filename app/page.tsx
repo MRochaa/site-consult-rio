@@ -95,15 +95,15 @@ export default function DentalOfficeSystem() {
   }
 
   const fetchUsers = async () => {
-    try {
-      const response = await fetch('/api/users')
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error)
-      setUsers(data)
-    } catch (error) {
-      console.error('Error fetching users:', error)
-    }
+  try {
+    const response = await AuthClient.fetchWithAuth('/api/users')
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error)
+    setUsers(data)
+  } catch (error) {
+    console.error('Error fetching users:', error)
   }
+}
 
   const handleLogin = async (e: React.FormEvent) => {
   e.preventDefault()
