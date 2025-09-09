@@ -7,23 +7,25 @@ const secret = new TextEncoder().encode(
   process.env.JWT_SECRET || 'your-secret-key-change-this-in-production'
 );
 
-async function verifyAuth(request: NextRequest) {
-  const token = cookies().get('auth-token')?.value;
-  
-  if (!token) {
-    return null;
-  }
-  
+async function verifyAuth() {
   try {
-    const { payload } = await jwtVerify(token, secret);
+    const cookieStore = cookies();
+    const token = cookieStore.get('auth-token');
+    
+    if (!token) {
+      return null;
+    }
+    
+    const { payload } = await jwtVerify(token.value, secret);
     return payload;
-  } catch {
+  } catch (error) {
+    console.error('Auth verification error:', error);
     return null;
   }
 }
 
 export async function GET(request: NextRequest) {
-  const auth = await verifyAuth(request);
+  const auth = await verifyAuth();
   
   if (!auth || auth.role !== 'admin') {
     return NextResponse.json(
@@ -46,7 +48,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await verifyAuth(request);
+  const auth = await verifyAuth();
   
   if (!auth || auth.role !== 'admin') {
     return NextResponse.json(
