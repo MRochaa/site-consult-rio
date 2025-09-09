@@ -107,31 +107,28 @@ export default function FormsAdminPage() {
 }
 
   const handleCreateForm = async () => {
-    try {
-      const method = editingForm ? 'PUT' : 'POST'
-      const url = editingForm ? `/api/forms/${editingForm.id}` : '/api/forms'
-      
-      const response = await fetch(url, {
-        method,
-        credentials: 'include', // Incluir cookies
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      })
+  try {
+    const method = editingForm ? 'PUT' : 'POST'
+    const url = editingForm ? `/api/forms/${editingForm.id}` : '/api/forms'
+    
+    const response = await AuthClient.fetchWithAuth(url, {
+      method,
+      body: JSON.stringify(formData)
+    })
 
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Erro ao salvar formulário')
-      }
-
-      setShowBuilder(false)
-      setEditingForm(null)
-      setFormData({ title: "", description: "", slug: "", fields: [] })
-      checkAuthAndFetchForms()
-    } catch (error: any) {
-      alert(error.message || 'Erro ao salvar formulário')
+    if (!response.ok) {
+      const data = await response.json()
+      throw new Error(data.error || 'Erro ao salvar formulário')
     }
-  }
 
+    setShowBuilder(false)
+    setEditingForm(null)
+    setFormData({ title: "", description: "", slug: "", fields: [] })
+    checkAuthAndFetchForms()
+  } catch (error: any) {
+    alert(error.message || 'Erro ao salvar formulário')
+  }
+}
   const addField = () => {
     const field = {
       id: Date.now().toString(),
