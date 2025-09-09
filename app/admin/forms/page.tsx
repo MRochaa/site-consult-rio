@@ -39,77 +39,72 @@ export default function FormsAdminPage() {
   }, [])
 
   const checkAuthAndFetchForms = async () => {
-    try {
-      // Verificar autenticação com cookies incluídos
-      const authResponse = await fetch('/api/auth', {
-        method: 'GET',
-        credentials: 'include', // Importante: incluir cookies
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      })
-      
-      if (!authResponse.ok) {
-        setIsAuthenticated(false)
-        setError("Erro ao verificar autenticação")
-        setIsLoading(false)
-        return
-      }
-
-      const authData = await authResponse.json()
-      console.log('Auth data:', JSON.stringify(authData, null, 2)) // Debug detalhado
-      
-      if (!authData.user) {
-        setIsAuthenticated(false)
-        setError("Você precisa fazer login para acessar esta página")
-        setIsLoading(false)
-        return
-      }
-
-      if (authData.user.role !== 'admin') {
-        setIsAuthenticated(false)
-        setError("Apenas administradores podem acessar esta página")
-        setIsLoading(false)
-        return
-      }
-
-      setCurrentUser(authData.user)
-      setIsAuthenticated(true)
-      
-      // Buscar formulários com credenciais
-      const formsResponse = await fetch('/api/forms', {
-        method: 'GET',
-        credentials: 'include', // Importante: incluir cookies
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      })
-      
-      if (!formsResponse.ok) {
-        if (formsResponse.status === 401) {
-          setIsAuthenticated(false)
-          setError("Sessão expirada. Por favor, faça login novamente.")
-        } else {
-          const errorData = await formsResponse.json()
-          setError(errorData.error || "Erro ao carregar formulários")
-        }
-        setForms([])
-      } else {
-        const formsData = await formsResponse.json()
-        if (Array.isArray(formsData)) {
-          setForms(formsData)
-        } else {
-          setForms([])
-        }
-      }
-    } catch (error) {
-      console.error('Error:', error)
-      setError("Erro ao conectar com o servidor")
-      setForms([])
-    } finally {
+  try {
+    // Verificar autenticação usando o AuthClient
+    const authResponse = await AuthClient.fetchWithAuth('/api/auth', {
+      method: 'GET'
+    })
+    
+    if (!authResponse.ok) {
+      setIsAuthenticated(false)
+      setError("Erro ao verificar autenticação")
       setIsLoading(false)
+      return
     }
+
+    const authData = await authResponse.json()
+    console.log('Auth data completo:', JSON.stringify(authData, null, 2))
+    
+    if (!authData.user) {
+      setIsAuthenticated(false)
+      setError("Você precisa fazer login para acessar esta página")
+      setIsLoading(false)
+      return
+    }
+
+    if (authData.user.role !== 'admin') {
+      setIsAuthenticated(false)
+      setError(`Apenas administradores podem acessar esta página. Seu perfil: ${authData.user.role}`)
+      setIsLoading(false)
+      return
+    }
+
+    setCurrentUser(authData.user)
+    setIsAuthenticated(true)
+    
+    // Buscar formulários com AuthClient
+    const formsResponse = await AuthClient.fetchWithAuth('/api/forms', {
+      method: 'GET'
+    })
+    
+    console.log('Forms response status:', formsResponse.status)
+    
+    if (!formsResponse.ok) {
+      if (formsResponse.status === 401) {
+        setIsAuthenticated(false)
+        setError("Sessão expirada. Por favor, faça login novamente.")
+      } else {
+        const errorData = await formsResponse.json()
+        setError(errorData.error || "Erro ao carregar formulários")
+      }
+      setForms([])
+    } else {
+      const formsData = await formsResponse.json()
+      console.log('Forms data:', formsData)
+      if (Array.isArray(formsData)) {
+        setForms(formsData)
+      } else {
+        setForms([])
+      }
+    }
+  } catch (error) {
+    console.error('Error completo:', error)
+    setError("Erro ao conectar com o servidor")
+    setForms([])
+  } finally {
+    setIsLoading(false)
   }
+}
 
   const handleCreateForm = async () => {
     try {
