@@ -185,51 +185,48 @@ export default function DentalOfficeSystem() {
   }
 }
 
-  const response = await AuthClient.fetchWithAuth('/api/backup', {
-  method: 'POST',
-  body: JSON.stringify(data)
-})
+const importData = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const file = event.target.files?.[0]
+  if (!file) return
 
-    const reader = new FileReader()
-    reader.onload = async (e) => {
-      try {
-        const data = JSON.parse(e.target?.result as string)
+  const reader = new FileReader()
+  reader.onload = async (e) => {
+    try {
+      const data = JSON.parse(e.target?.result as string)
 
-        if (confirm(
-          `Importar backup de ${data.exportDate ? new Date(data.exportDate).toLocaleDateString() : "data desconhecida"}? Isso substituirá todos os dados atuais.`
-        )) {
-          const response = await fetch('/api/backup', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-          })
+      if (confirm(
+        `Importar backup de ${data.exportDate ? new Date(data.exportDate).toLocaleDateString() : "data desconhecida"}? Isso substituirá todos os dados atuais.`
+      )) {
+        const response = await AuthClient.fetchWithAuth('/api/backup', {
+          method: 'POST',
+          body: JSON.stringify(data)
+        })
 
-          const result = await response.json()
-          
-          if (!response.ok) throw new Error(result.error)
+        const result = await response.json()
+        
+        if (!response.ok) throw new Error(result.error)
 
-          alert("Backup importado com sucesso!")
-          setCurrentView("home")
-          
-          // Recarregar dados
-          fetchLinks()
-          if (currentUser?.role === 'admin') {
-            fetchUsers()
-          }
+        alert("Backup importado com sucesso!")
+        setCurrentView("home")
+        
+        // Recarregar dados
+        fetchLinks()
+        if (currentUser?.role === 'admin') {
+          fetchUsers()
         }
-      } catch (error) {
-        alert("Erro ao importar backup: " + (error as Error).message)
       }
+    } catch (error) {
+      alert("Erro ao importar backup: " + (error as Error).message)
     }
-
-    reader.onerror = () => {
-      alert("Erro ao ler o arquivo")
-    }
-
-    reader.readAsText(file)
-    event.target.value = ""
   }
 
+  reader.onerror = () => {
+    alert("Erro ao ler o arquivo")
+  }
+
+  reader.readAsText(file)
+  event.target.value = ""
+}
   const handleAddLink = async (e: React.FormEvent) => {
   e.preventDefault()
   try {
