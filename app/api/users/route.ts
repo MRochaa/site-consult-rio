@@ -7,27 +7,33 @@ const secret = new TextEncoder().encode(
   process.env.JWT_SECRET || 'your-secret-key-change-this-in-production'
 );
 
-async function verifyAuth() {
+async function verifyAuth(request: NextRequest) {
   try {
+    // Tentar pegar token do cookie primeiro
     const cookieStore = cookies();
-    const token = cookieStore.get('auth-token');
+    const cookieToken = cookieStore.get('auth-token');
+    
+    // Se não tiver no cookie, tentar pegar do header
+    const headerToken = request.headers.get('X-Auth-Token');
+    
+    const token = cookieToken?.value || headerToken;
     
     if (!token) {
-      console.log('No token found');
+      console.log('No token found in /api/users');
       return null;
     }
     
-    const { payload } = await jwtVerify(token.value, secret);
-    console.log('Auth verified:', payload);
+    const { payload } = await jwtVerify(token, secret);
+    console.log('Auth verified in /api/users:', payload);
     return payload;
   } catch (error) {
-    console.error('Auth verification error:', error);
+    console.error('Auth verification error in /api/users:', error);
     return null;
   }
 }
 
 export async function GET(request: NextRequest) {
-  const auth = await verifyAuth();
+  const auth = await verifyAuth(request);
   
   if (!auth) {
     console.log('GET /api/users - No auth');
@@ -60,7 +66,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await verifyAuth();
+  const auth = await verifyAuth(request);
   
   if (!auth || auth.role !== 'admin') {
     return NextResponse.json(
@@ -96,7 +102,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const auth = await verifyAuth();
+  const auth = await verifyAuth(request);
   
   if (!auth) {
     return NextResponse.json(
@@ -136,7 +142,7 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const auth = await verifyAuth();
+  const auth = await verifyAuth(request);
   
   if (!auth || auth.role !== 'admin') {
     return NextResponse.json(
