@@ -31,15 +31,8 @@ export async function POST(request: NextRequest) {
       .setExpirationTime('24h')
       .sign(secret);
     
-    // Set cookie
-    cookies().set('auth-token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 60 * 60 * 24 // 24 hours
-    });
-    
-    return NextResponse.json({
+    // Create response
+    const response = NextResponse.json({
       user: {
         id: user.id,
         username: user.username,
@@ -47,6 +40,19 @@ export async function POST(request: NextRequest) {
         role: user.role
       }
     });
+
+    // Set cookie with proper configuration
+    response.cookies.set({
+      name: 'auth-token',
+      value: token,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax', // Changed from 'strict' to 'lax'
+      maxAge: 60 * 60 * 24, // 24 hours
+      path: '/' // Ensure cookie is available for all paths
+    });
+    
+    return response;
   } catch (error) {
     console.error('Login error:', error);
     return NextResponse.json(
@@ -58,13 +64,14 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const token = cookies().get('auth-token')?.value;
+    const cookieStore = cookies();
+    const token = cookieStore.get('auth-token');
     
     if (!token) {
       return NextResponse.json({ user: null });
     }
     
-    const { payload } = await jwtVerify(token, secret);
+    const { payload } = await jwtVerify(token.value, secret);
     
     return NextResponse.json({
       user: {
@@ -75,11 +82,23 @@ export async function GET(request: NextRequest) {
       }
     });
   } catch (error) {
+    console.error('Auth verification error:', error);
     return NextResponse.json({ user: null });
   }
 }
 
 export async function DELETE() {
-  cookies().delete('auth-token');
-  return NextResponse.json({ success: true });
+  const response = NextResponse.json({ success: true });
+  
+  response.cookies.set({
+    name: 'auth-token',
+    value: '',
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 0,
+    path: '/'
+  });
+  
+  return response;
 }
