@@ -7,16 +7,22 @@ const secret = new TextEncoder().encode(
   process.env.JWT_SECRET || 'your-secret-key-change-this-in-production'
 );
 
-async function verifyAuth() {
+async function verifyAuth(request: NextRequest) {
   try {
+    // Tentar pegar token do cookie primeiro
     const cookieStore = cookies();
-    const token = cookieStore.get('auth-token');
+    const cookieToken = cookieStore.get('auth-token');
+    
+    // Se não tiver no cookie, tentar pegar do header
+    const headerToken = request.headers.get('X-Auth-Token');
+    
+    const token = cookieToken?.value || headerToken;
     
     if (!token) {
       return null;
     }
     
-    const { payload } = await jwtVerify(token.value, secret);
+    const { payload } = await jwtVerify(token, secret);
     return payload;
   } catch (error) {
     console.error('Auth verification error:', error);
@@ -26,7 +32,7 @@ async function verifyAuth() {
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = await verifyAuth();
+    const auth = await verifyAuth(request);
     const links = getAllLinks();
     
     // If not authenticated, return only public links
@@ -46,7 +52,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await verifyAuth();
+  const auth = await verifyAuth(request);
   
   if (!auth || auth.role !== 'admin') {
     return NextResponse.json(
@@ -72,7 +78,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const auth = await verifyAuth();
+  const auth = await verifyAuth(request);
   
   if (!auth || auth.role !== 'admin') {
     return NextResponse.json(
@@ -105,7 +111,7 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const auth = await verifyAuth();
+  const auth = await verifyAuth(request);
   
   if (!auth || auth.role !== 'admin') {
     return NextResponse.json(
