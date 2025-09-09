@@ -163,31 +163,32 @@ export default function DentalOfficeSystem() {
 }
 
   const exportData = async () => {
-    try {
-      const response = await fetch('/api/backup')
-      const data = await response.json()
-      
-      if (!response.ok) throw new Error(data.error)
-      
-      const dataStr = JSON.stringify(data, null, 2)
-      const dataBlob = new Blob([dataStr], { type: "application/json" })
-      const url = URL.createObjectURL(dataBlob)
+  try {
+    const response = await AuthClient.fetchWithAuth('/api/backup')
+    const data = await response.json()
+    
+    if (!response.ok) throw new Error(data.error)
+    
+    const dataStr = JSON.stringify(data, null, 2)
+    const dataBlob = new Blob([dataStr], { type: "application/json" })
+    const url = URL.createObjectURL(dataBlob)
 
-      const link = document.createElement("a")
-      link.href = url
-      link.download = `dental-office-backup-${new Date().toISOString().split("T")[0]}.json`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
-    } catch (error) {
-      alert("Erro ao exportar dados. Tente novamente.")
-    }
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `dental-office-backup-${new Date().toISOString().split("T")[0]}.json`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  } catch (error) {
+    alert("Erro ao exportar dados. Tente novamente.")
   }
+}
 
-  const importData = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
+  const response = await AuthClient.fetchWithAuth('/api/backup', {
+  method: 'POST',
+  body: JSON.stringify(data)
+})
 
     const reader = new FileReader()
     reader.onload = async (e) => {
@@ -293,21 +294,21 @@ export default function DentalOfficeSystem() {
 }
 
   const handleDeleteLink = async (linkId: string) => {
-    if (confirm("Tem certeza que deseja excluir este link?")) {
-      try {
-        const response = await fetch(`/api/links?id=${linkId}`, {
-          method: 'DELETE'
-        })
+  if (confirm("Tem certeza que deseja excluir este link?")) {
+    try {
+      const response = await AuthClient.fetchWithAuth(`/api/links?id=${linkId}`, {
+        method: 'DELETE'
+      })
 
-        const data = await response.json()
-        if (!response.ok) throw new Error(data.error)
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error)
 
-        fetchLinks()
-      } catch (error) {
-        alert("Erro ao excluir link: " + (error as Error).message)
-      }
+      fetchLinks()
+    } catch (error) {
+      alert("Erro ao excluir link: " + (error as Error).message)
     }
   }
+}
 
   const cancelEdit = () => {
     setEditingLink(null)
@@ -315,97 +316,95 @@ export default function DentalOfficeSystem() {
   }
 
   const handleCreateUser = async (e: React.FormEvent) => {
-    e.preventDefault()
+  e.preventDefault()
 
-    if (userForm.password !== userForm.confirmPassword) {
-      alert("As senhas não coincidem")
-      return
-    }
+  if (userForm.password !== userForm.confirmPassword) {
+    alert("As senhas não coincidem")
+    return
+  }
 
+  try {
+    const response = await AuthClient.fetchWithAuth('/api/users', {
+      method: 'POST',
+      body: JSON.stringify({
+        username: userForm.username,
+        password: userForm.password,
+        name: userForm.name,
+        role: userForm.role
+      })
+    })
+
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error)
+
+    setUserForm({ username: "", password: "", confirmPassword: "", role: "user", name: "" })
+    setCurrentView("users")
+    fetchUsers()
+  } catch (error) {
+    alert("Erro ao criar usuário: " + (error as Error).message)
+  }
+}
+
+  const handleUpdateUser = async (e: React.FormEvent) => {
+  e.preventDefault()
+
+  if (userForm.password && userForm.password !== userForm.confirmPassword) {
+    alert("As senhas não coincidem")
+    return
+  }
+
+  if (editingUser) {
     try {
-      const response = await fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: userForm.username,
-          password: userForm.password,
-          name: userForm.name,
-          role: userForm.role
-        })
+      const updates: any = {
+        id: editingUser.id,
+        username: userForm.username,
+        name: userForm.name,
+        role: userForm.role
+      }
+
+      if (userForm.password) {
+        updates.password = userForm.password
+      }
+
+      const response = await AuthClient.fetchWithAuth('/api/users', {
+        method: 'PUT',
+        body: JSON.stringify(updates)
       })
 
       const data = await response.json()
       if (!response.ok) throw new Error(data.error)
 
+      setEditingUser(null)
       setUserForm({ username: "", password: "", confirmPassword: "", role: "user", name: "" })
       setCurrentView("users")
       fetchUsers()
     } catch (error) {
-      alert("Erro ao criar usuário: " + (error as Error).message)
+      alert("Erro ao atualizar usuário: " + (error as Error).message)
     }
   }
-
-  const handleUpdateUser = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (userForm.password && userForm.password !== userForm.confirmPassword) {
-      alert("As senhas não coincidem")
-      return
-    }
-
-    if (editingUser) {
-      try {
-        const updates: any = {
-          id: editingUser.id,
-          username: userForm.username,
-          name: userForm.name,
-          role: userForm.role
-        }
-
-        if (userForm.password) {
-          updates.password = userForm.password
-        }
-
-        const response = await fetch('/api/users', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updates)
-        })
-
-        const data = await response.json()
-        if (!response.ok) throw new Error(data.error)
-
-        setEditingUser(null)
-        setUserForm({ username: "", password: "", confirmPassword: "", role: "user", name: "" })
-        setCurrentView("users")
-        fetchUsers()
-      } catch (error) {
-        alert("Erro ao atualizar usuário: " + (error as Error).message)
-      }
-    }
-  }
+}
 
   const handleDeleteUser = async (userId: string) => {
-    if (currentUser && currentUser.id === userId) {
-      alert("Você não pode excluir sua própria conta!")
-      return
-    }
+  if (currentUser && currentUser.id === userId) {
+    alert("Você não pode excluir sua própria conta!")
+    return
+  }
 
-    if (confirm("Tem certeza que deseja excluir este usuário?")) {
-      try {
-        const response = await fetch(`/api/users?id=${userId}`, {
-          method: 'DELETE'
-        })
+  if (confirm("Tem certeza que deseja excluir este usuário?")) {
+    try {
+      const response = await AuthClient.fetchWithAuth(`/api/users?id=${userId}`, {
+        method: 'DELETE'
+      })
 
-        const data = await response.json()
-        if (!response.ok) throw new Error(data.error)
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error)
 
-        fetchUsers()
-      } catch (error) {
-        alert("Erro ao excluir usuário: " + (error as Error).message)
-      }
+      fetchUsers()
+    } catch (error) {
+      alert("Erro ao excluir usuário: " + (error as Error).message)
     }
   }
+}
 
   const handleEditUser = (user: User) => {
     setEditingUser(user)
