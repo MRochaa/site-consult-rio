@@ -56,7 +56,7 @@ export default function FormsAdminPage() {
       }
 
       const authData = await authResponse.json()
-      console.log('Auth data:', authData) // Debug
+      console.log('Auth data:', JSON.stringify(authData, null, 2)) // Debug detalhado
       
       if (!authData.user) {
         setIsAuthenticated(false)
