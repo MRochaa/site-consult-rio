@@ -106,54 +106,61 @@ export default function DentalOfficeSystem() {
   }
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoginError("")
-    setIsLoading(true)
+  e.preventDefault()
+  setLoginError("")
+  setIsLoading(true)
 
-    try {
-      const response = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(loginForm)
-      })
+  try {
+    const response = await fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(loginForm),
+      credentials: 'include'
+    })
 
-      const data = await response.json()
-      
-      if (!response.ok) {
-        setLoginError(data.error || 'Erro ao fazer login')
-        return
-      }
-
-      setCurrentUser(data.user)
-      setLoginForm({ username: "", password: "" })
-      setCurrentView("home")
-      
-      // Recarregar links após login
-      fetchLinks()
-      
-      // Carregar usuários se for admin
-      if (data.user.role === 'admin') {
-        fetchUsers()
-      }
-    } catch (error) {
-      setLoginError('Erro ao conectar com o servidor')
-    } finally {
-      setIsLoading(false)
+    const data = await response.json()
+    
+    if (!response.ok) {
+      setLoginError(data.error || 'Erro ao fazer login')
+      return
     }
+
+    // Salvar token no localStorage como backup
+    if (data.token) {
+      AuthClient.saveToken(data.token)
+    }
+
+    setCurrentUser(data.user)
+    setLoginForm({ username: "", password: "" })
+    setCurrentView("home")
+    
+    // Recarregar links após login
+    fetchLinks()
+    
+    // Carregar usuários se for admin
+    if (data.user.role === 'admin') {
+      fetchUsers()
+    }
+  } catch (error) {
+    setLoginError('Erro ao conectar com o servidor')
+  } finally {
+    setIsLoading(false)
   }
+}
 
   const handleLogout = async () => {
-    try {
-      await fetch('/api/auth', { method: 'DELETE' })
-      setCurrentUser(null)
-      setUsers([])
-      setCurrentView("home")
-      // Recarregar apenas links públicos
-      fetchLinks()
-    } catch (error) {
-      console.error('Error logging out:', error)
-    }
+  try {
+    await fetch('/api/auth', { method: 'DELETE', credentials: 'include' })
+    AuthClient.clearToken() // Limpar token do localStorage
+    setCurrentUser(null)
+    setUsers([])
+    setCurrentView("home")
+    // Recarregar apenas links públicos
+    fetchLinks()
+  } catch (error) {
+    console.error('Error logging out:', error)
   }
+}
 
   const exportData = async () => {
     try {
