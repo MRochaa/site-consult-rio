@@ -168,30 +168,29 @@ export default function FormsAdminPage() {
   }
 
   const exportSubmissions = async (formId: string) => {
-    try {
-      const response = await fetch(`/api/forms/${formId}/submissions`, {
-        credentials: 'include'
-      })
-      if (!response.ok) {
-        throw new Error('Erro ao exportar submissões')
-      }
-      const data = await response.json()
-      
-      const dataStr = JSON.stringify(data, null, 2)
-      const dataBlob = new Blob([dataStr], { type: "application/json" })
-      const url = URL.createObjectURL(dataBlob)
-
-      const link = document.createElement("a")
-      link.href = url
-      link.download = `submissions-${formId}-${new Date().toISOString().split("T")[0]}.json`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
-    } catch (error: any) {
-      alert(error.message || "Erro ao exportar submissões")
+  try {
+    const response = await AuthClient.fetchWithAuth(`/api/forms/${formId}/submissions`)
+    
+    if (!response.ok) {
+      throw new Error('Erro ao exportar submissões')
     }
+    const data = await response.json()
+    
+    const dataStr = JSON.stringify(data, null, 2)
+    const dataBlob = new Blob([dataStr], { type: "application/json" })
+    const url = URL.createObjectURL(dataBlob)
+
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `submissions-${formId}-${new Date().toISOString().split("T")[0]}.json`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  } catch (error: any) {
+    alert(error.message || "Erro ao exportar submissões")
   }
+}
 
   // Se estiver carregando
   if (isLoading) {
