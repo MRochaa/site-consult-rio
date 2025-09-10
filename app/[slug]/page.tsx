@@ -405,16 +405,17 @@ return (
 )
 
               <Button
-                type="submit"
-                className="w-full"
-                disabled={submitting}
-              >
-                {submitting ? "Enviando..." : "Enviar Formulário"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
+              type="submit"
+              className="w-full"
+              style={buttonStyle}
+              disabled={submitting}
+            >
+              {submitting ? "Enviando..." : "Enviar Formulário"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
-  )
+  </div>
+)
 }
