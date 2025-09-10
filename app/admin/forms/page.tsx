@@ -8,7 +8,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Plus, Trash2, Edit, Eye, Copy, FileText, Download, ArrowLeft, ArrowUp, ArrowDown, X, Palette } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { AuthClient } from "@/lib/auth-client"
-import { Palette } from "lucide-react"
 
 interface FieldOption {
   id: string
