@@ -5,9 +5,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Plus, Trash2, Edit, Eye, Copy, FileText, Download, ArrowLeft, ArrowUp, ArrowDown, X } from "lucide-react"
+import { Plus, Trash2, Edit, Eye, Copy, FileText, Download, ArrowLeft, ArrowUp, ArrowDown, X, Palette } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { AuthClient } from "@/lib/auth-client"
+import { Palette } from "lucide-react"
 
 interface FieldOption {
   id: string
@@ -758,6 +759,25 @@ export default function FormsAdminPage() {
                         }}
                         className="backdrop-blur-sm bg-white/5 border-white/20 text-white hover:bg-white/10"
                       >
+                         <Button
+    size="sm"
+    variant="outline"
+    onClick={() => router.push(`/admin/forms/builder/${form.id}`)}
+    className="backdrop-blur-sm bg-white/5 border-white/20 text-white hover:bg-white/10"
+  >
+    <Palette className="h-4 w-4" />
+  </Button>
+  
+  <Button
+    size="sm"
+    variant="outline"
+    onClick={() => {
+      setEditingForm(form)
+      setFormData(form)
+      setShowBuilder(true)
+    }}
+    className="backdrop-blur-sm bg-white/5 border-white/20 text-white hover:bg-white/10"
+  >
                         <Edit className="h-4 w-4" />
                       </Button>
                     </div>
