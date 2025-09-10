@@ -186,19 +186,72 @@ export default function PublicFormPage() {
         )
 
       case 'checkbox':
-        return (
-          <div key={field.id} className="space-y-2">
-            <label className="flex items-center space-x-2">
+  // Se tem opções, é checkbox múltiplo
+  if (field.options && field.options.length > 0) {
+    return (
+      <div key={field.id} className="space-y-2">
+        <Label>{field.label} {field.required && <span className="text-red-500">*</span>}</Label>
+        <div className="space-y-2">
+          {field.multipleChoice && (
+            <p className="text-sm text-gray-600">Selecione uma ou mais opções</p>
+          )}
+          {field.options.map((option: string) => (
+            <label key={option} className="flex items-center space-x-2">
               <input
                 type="checkbox"
-                required={field.required}
-                checked={formData[field.name] || false}
-                onChange={(e) => setFormData({...formData, [field.name]: e.target.checked})}
+                value={option}
+                checked={Array.isArray(formData[field.name]) 
+                  ? formData[field.name].includes(option)
+                  : formData[field.name] === option}
+                onChange={(e) => {
+                  if (field.multipleChoice) {
+                    // Múltipla seleção
+                    const currentValues = Array.isArray(formData[field.name]) 
+                      ? formData[field.name] 
+                      : []
+                    
+                    if (e.target.checked) {
+                      setFormData({
+                        ...formData, 
+                        [field.name]: [...currentValues, option]
+                      })
+                    } else {
+                      setFormData({
+                        ...formData, 
+                        [field.name]: currentValues.filter((v: string) => v !== option)
+                      })
+                    }
+                  } else {
+                    // Seleção única (comportamento de radio com visual de checkbox)
+                    setFormData({
+                      ...formData, 
+                      [field.name]: e.target.checked ? option : ''
+                    })
+                  }
+                }}
               />
-              <span>{field.label} {field.required && <span className="text-red-500">*</span>}</span>
+              <span>{option}</span>
             </label>
-          </div>
-        )
+          ))}
+        </div>
+      </div>
+    )
+  } else {
+    // Checkbox simples (sim/não)
+    return (
+      <div key={field.id} className="space-y-2">
+        <label className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            required={field.required}
+            checked={formData[field.name] || false}
+            onChange={(e) => setFormData({...formData, [field.name]: e.target.checked})}
+          />
+          <span>{field.label} {field.required && <span className="text-red-500">*</span>}</span>
+        </label>
+      </div>
+    )
+  }
 
       case 'signature':
         return (
