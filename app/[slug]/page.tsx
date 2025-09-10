@@ -30,7 +30,6 @@ export default function PublicFormPage() {
   
   const [form, setForm] = useState<any>(null)
   const [formData, setFormData] = useState<Record<string, any>>({})
-  const [signature, setSignature] = useState<string>("")
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -74,32 +73,32 @@ export default function PublicFormPage() {
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSubmitting(true)
-    setError("")
+  e.preventDefault()
+  setSubmitting(true)
+  setError("")
 
-    try {
-      const response = await fetch(`/api/forms/public/${slug}/submit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          data: formData,
-          signature
-        })
+  try {
+    const response = await fetch(`/api/forms/public/${slug}/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data: formData,
+        signature: formData.signature || null // Pega a assinatura do formData
       })
+    })
 
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Erro ao enviar formulário')
-      }
-
-      setSubmitted(true)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setSubmitting(false)
+    if (!response.ok) {
+      const data = await response.json()
+      throw new Error(data.error || 'Erro ao enviar formulário')
     }
+
+    setSubmitted(true)
+  } catch (err: any) {
+    setError(err.message)
+  } finally {
+    setSubmitting(false)
   }
+}
 
   const renderField = (field: FormField) => {
     if (!shouldShowField(field)) return null
@@ -205,22 +204,22 @@ export default function PublicFormPage() {
         return (
           <div key={field.id} className="space-y-2">
             <Label>{field.label} {field.required && <span className="text-red-500">*</span>}</Label>
-            {!signature ? (
-              <SignaturePad onSave={setSignature} />
-            ) : (
-              <div className="space-y-2">
-                <img src={signature} alt="Assinatura" className="border rounded p-2 bg-white" />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setSignature("")}
-                >
-                  Refazer Assinatura
-                </Button>
-              </div>
-            )}
-          </div>
-        )
+      {!formData[field.name] ? (
+        <SignaturePad onSave={(sig) => setFormData({...formData, [field.name]: sig})} />
+      ) : (
+        <div className="space-y-2">
+          <img src={formData[field.name]} alt="Assinatura" className="border rounded p-2 bg-white" />
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setFormData({...formData, [field.name]: ""})}
+          >
+            Refazer Assinatura
+          </Button>
+        </div>
+      )}
+    </div>
+  )
 
       default:
         return null
