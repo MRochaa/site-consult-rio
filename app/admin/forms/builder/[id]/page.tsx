@@ -8,16 +8,39 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FormStyleEditor } from "@/components/form-style-editor"
+import { FormLayoutEditor } from "@/components/form-layout-editor"
 import { AuthClient } from "@/lib/auth-client"
 import { 
   ArrowLeft, Save, Eye, Monitor, Tablet, Smartphone, 
   Plus, Trash2, ArrowUp, ArrowDown, Settings, Palette,
-  FileText, X 
+  FileText, X, Edit2, Check, Layout
 } from "lucide-react"
 
 interface FieldOption {
   id: string
   value: string
+  isEditing?: boolean // Para controlar edição inline
+}
+
+interface FieldPosition {
+  row: number
+  col: number
+  width: number // 1-12 (sistema de grid de 12 colunas)
+  height?: number // altura em linhas do grid
+}
+
+interface FormField {
+  id: string
+  type: string
+  label: string
+  name: string
+  required?: boolean
+  placeholder?: string
+  options?: string[]
+  multipleChoice?: boolean
+  position?: FieldPosition
+  optionsLayout?: 'vertical' | 'horizontal' | 'grid'
+  optionsColumns?: number
 }
 
 export default function FormBuilderPage() {
@@ -31,13 +54,14 @@ export default function FormBuilderPage() {
     description: '',
     slug: '',
     fields: [],
-    style: {}
+    style: {},
+    layout: 'single' // Adicionar controle de layout
   })
   
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [previewDevice, setPreviewDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop')
-  const [activeTab, setActiveTab] = useState('fields') // Tab ativa: 'fields' ou 'style'
+  const [activeTab, setActiveTab] = useState('fields') // Tab ativa: 'fields', 'layout' ou 'style'
   
   // Estados para adicionar campos
   const [currentField, setCurrentField] = useState({
@@ -48,8 +72,11 @@ export default function FormBuilderPage() {
     placeholder: "",
     options: [] as FieldOption[],
     multipleChoice: false,
+    optionsLayout: 'vertical' as 'vertical' | 'horizontal' | 'grid',
+    optionsColumns: 2,
   })
   const [newOption, setNewOption] = useState("")
+  const [editingFieldId, setEditingFieldId] = useState<string | null>(null) // Para editar campo existente
   
   useEffect(() => {
     if (formId !== 'new') {
@@ -71,7 +98,8 @@ export default function FormBuilderPage() {
         description: data.description || '',
         slug: data.slug || '',
         fields: data.fields || [],
-        style: data.style || {}
+        style: data.style || {},
+        layout: data.style?.layout || 'single'
       })
     } catch (error) {
       console.error(error)
@@ -101,7 +129,7 @@ export default function FormBuilderPage() {
           description: form.description,
           slug: form.slug,
           fields: form.fields,
-          style: form.style // IMPORTANTE: Enviar o estilo junto
+          style: { ...form.style, layout: form.layout } // Incluir layout no style
         })
       })
       
@@ -128,7 +156,8 @@ export default function FormBuilderPage() {
     
     const option: FieldOption = {
       id: Date.now().toString(),
-      value: newOption.trim()
+      value: newOption.trim(),
+      isEditing: false
     }
     
     setCurrentField({
@@ -136,6 +165,40 @@ export default function FormBuilderPage() {
       options: [...currentField.options, option]
     })
     setNewOption("")
+  }
+
+  // Função para editar uma opção existente
+  const startEditOption = (optionId: string) => {
+    setCurrentField({
+      ...currentField,
+      options: currentField.options.map(o => ({
+        ...o,
+        isEditing: o.id === optionId
+      }))
+    })
+  }
+
+  // Função para salvar edição de opção
+  const saveOptionEdit = (optionId: string, newValue: string) => {
+    setCurrentField({
+      ...currentField,
+      options: currentField.options.map(o => 
+        o.id === optionId 
+          ? { ...o, value: newValue, isEditing: false }
+          : o
+      )
+    })
+  }
+
+  // Função para cancelar edição de opção
+  const cancelOptionEdit = (optionId: string) => {
+    setCurrentField({
+      ...currentField,
+      options: currentField.options.map(o => ({
+        ...o,
+        isEditing: false
+      }))
+    })
   }
 
   const removeOption = (optionId: string) => {
@@ -163,15 +226,15 @@ export default function FormBuilderPage() {
     setCurrentField({ ...currentField, options: newOptions })
   }
 
-  // Adicionar campo ao formulário
-  const addField = () => {
+  // Adicionar ou atualizar campo
+  const addOrUpdateField = () => {
     if (!currentField.label) {
       alert('O campo precisa ter um label')
       return
     }
 
-    const field = {
-      id: Date.now().toString(),
+    const field: FormField = {
+      id: editingFieldId || Date.now().toString(),
       type: currentField.type,
       label: currentField.label,
       name: currentField.name || currentField.label.toLowerCase().replace(/\s+/g, '_'),
@@ -180,13 +243,46 @@ export default function FormBuilderPage() {
       options: currentField.type === 'select' || currentField.type === 'radio' || currentField.type === 'checkbox'
         ? currentField.options.map(o => o.value)
         : undefined,
-      multipleChoice: currentField.type === 'checkbox' ? currentField.multipleChoice : undefined
+      multipleChoice: currentField.type === 'checkbox' ? currentField.multipleChoice : undefined,
+      optionsLayout: ['select', 'radio', 'checkbox'].includes(currentField.type) 
+        ? currentField.optionsLayout 
+        : undefined,
+      optionsColumns: currentField.optionsLayout === 'grid' ? currentField.optionsColumns : undefined
     }
 
-    setForm({
-      ...form,
-      fields: [...form.fields, field]
-    })
+    if (editingFieldId) {
+      // Atualizar campo existente
+      setForm({
+        ...form,
+        fields: form.fields.map((f: FormField) => 
+          f.id === editingFieldId ? { ...f, ...field } : f
+        )
+      })
+      setEditingFieldId(null)
+    } else {
+      // Adicionar novo campo
+      // Calcular posição baseada no layout
+      let position: FieldPosition
+      const fieldCount = form.fields.length
+      
+      if (form.layout === 'single') {
+        position = { row: fieldCount, col: 0, width: 12 }
+      } else if (form.layout === 'two-column') {
+        position = {
+          row: Math.floor(fieldCount / 2),
+          col: (fieldCount % 2) * 6,
+          width: 6
+        }
+      } else {
+        // Layout personalizado - adicionar no final
+        position = { row: fieldCount, col: 0, width: 12 }
+      }
+      
+      setForm({
+        ...form,
+        fields: [...form.fields, { ...field, position }]
+      })
+    }
 
     // Limpar campo atual
     setCurrentField({
@@ -196,7 +292,46 @@ export default function FormBuilderPage() {
       required: false,
       placeholder: "",
       options: [],
-      multipleChoice: false
+      multipleChoice: false,
+      optionsLayout: 'vertical',
+      optionsColumns: 2
+    })
+    setNewOption("")
+  }
+// Função para iniciar edição de um campo existente
+  const startEditField = (field: FormField) => {
+    setEditingFieldId(field.id)
+    setCurrentField({
+      type: field.type,
+      label: field.label,
+      name: field.name || '',
+      required: field.required || false,
+      placeholder: field.placeholder || '',
+      options: field.options?.map((opt, index) => ({
+        id: `opt-${index}`,
+        value: opt,
+        isEditing: false
+      })) || [],
+      multipleChoice: field.multipleChoice || false,
+      optionsLayout: field.optionsLayout || 'vertical',
+      optionsColumns: field.optionsColumns || 2
+    })
+    setActiveTab('fields') // Mudar para aba de campos
+  }
+
+  // Cancelar edição
+  const cancelEdit = () => {
+    setEditingFieldId(null)
+    setCurrentField({
+      type: "text",
+      label: "",
+      name: "",
+      required: false,
+      placeholder: "",
+      options: [],
+      multipleChoice: false,
+      optionsLayout: 'vertical',
+      optionsColumns: 2
     })
     setNewOption("")
   }
@@ -229,6 +364,21 @@ export default function FormBuilderPage() {
     setForm({ ...form, fields: newFields })
   }
 
+  // Função para atualizar um campo específico
+  const updateField = (fieldId: string, updates: Partial<FormField>) => {
+    setForm({
+      ...form,
+      fields: form.fields.map((f: FormField) => 
+        f.id === fieldId ? { ...f, ...updates } : f
+      )
+    })
+  }
+
+  // Função para reordenar campos
+  const reorderFields = (newFields: FormField[]) => {
+    setForm({ ...form, fields: newFields })
+  }
+
   // Obter largura do preview
   const getPreviewWidth = () => {
     switch (previewDevice) {
@@ -238,7 +388,7 @@ export default function FormBuilderPage() {
     }
   }
 
-  // Renderizar preview do formulário
+  // Renderizar preview do formulário com suporte aos layouts
   const renderPreview = () => {
     const containerStyle: any = {
       backgroundColor: form.style?.backgroundColor || '#ffffff',
@@ -279,6 +429,108 @@ export default function FormBuilderPage() {
       padding: form.style?.fieldPadding || '0.5rem 1rem',
     }
 
+    // Renderizar campos com base no layout
+    const renderFields = () => {
+      if (form.fields.length === 0) {
+        return (
+          <p className="text-gray-400 text-center py-8">
+            Adicione campos na aba "Campos" para visualizar aqui
+          </p>
+        )
+      }
+
+      // Para layout personalizado, usar posições absolutas
+      if (form.layout === 'custom') {
+        return (
+          <div className="relative min-h-[300px]">
+            {form.fields.map((field: FormField) => {
+              const position = field.position || { row: 0, col: 0, width: 12 }
+              return (
+                <div
+                  key={field.id}
+                  className="absolute"
+                  style={{
+                    top: `${position.row * 80}px`,
+                    left: `${(position.col / 12) * 100}%`,
+                    width: `${(position.width / 12) * 100}%`,
+                    paddingRight: '8px'
+                  }}
+                >
+                  {renderFieldPreview(field, fieldStyle)}
+                </div>
+              )
+            })}
+          </div>
+        )
+      }
+
+      // Para layouts de grade (single/two-column)
+      const gridClass = form.layout === 'two-column' ? 'grid grid-cols-2 gap-4' : 'space-y-4'
+      
+      return (
+        <div className={gridClass}>
+          {form.fields.map((field: FormField) => (
+            <div key={field.id}>
+              {renderFieldPreview(field, fieldStyle)}
+            </div>
+          ))}
+        </div>
+      )
+    }
+
+    // Função auxiliar para renderizar preview de campo individual
+    const renderFieldPreview = (field: FormField, fieldStyle: any) => {
+      const optionsClass = field.optionsLayout === 'horizontal' 
+        ? 'flex flex-wrap gap-4' 
+        : field.optionsLayout === 'grid'
+        ? `grid grid-cols-${field.optionsColumns || 2} gap-2`
+        : 'space-y-2'
+
+      return (
+        <div>
+          <label className="block mb-1" style={{ color: form.style?.headingColor }}>
+            {field.label} {field.required && <span className="text-red-500">*</span>}
+          </label>
+          {field.type === 'textarea' ? (
+            <textarea
+              placeholder={field.placeholder}
+              style={fieldStyle}
+              className="w-full min-h-[100px]"
+              disabled
+            />
+          ) : field.type === 'select' ? (
+            <select style={fieldStyle} className="w-full" disabled>
+              <option>Selecione...</option>
+              {field.options?.map((opt: string) => (
+                <option key={opt}>{opt}</option>
+              ))}
+            </select>
+          ) : field.type === 'radio' || field.type === 'checkbox' ? (
+            <div className={optionsClass}>
+              {field.options?.map((opt: string) => (
+                <label key={opt} className="flex items-center space-x-2">
+                  <input type={field.type} disabled />
+                  <span>{opt}</span>
+                </label>
+              ))}
+            </div>
+          ) : field.type === 'signature' ? (
+            <div style={fieldStyle} className="w-full h-32 flex items-center justify-center text-gray-400">
+              Área de Assinatura
+            </div>
+          ) : (
+            <input
+              type={field.type}
+              placeholder={field.placeholder}
+              style={fieldStyle}
+              className="w-full"
+              disabled
+            />
+          )}
+        </div>
+      )
+    }
+
     return (
       <div style={containerStyle} className={`${getPreviewWidth()} mx-auto transition-all`}>
         <h1 style={headingStyle} className="font-bold mb-2">
@@ -290,58 +542,11 @@ export default function FormBuilderPage() {
           </p>
         )}
         
-        <div className="space-y-4">
-          {/* Preview dos campos reais */}
-          {form.fields.length > 0 ? (
-            form.fields.map((field: any) => (
-              <div key={field.id}>
-                <label className="block mb-1" style={{ color: form.style?.headingColor }}>
-                  {field.label} {field.required && <span className="text-red-500">*</span>}
-                </label>
-                {field.type === 'textarea' ? (
-                  <textarea
-                    placeholder={field.placeholder}
-                    style={fieldStyle}
-                    className="w-full min-h-[100px]"
-                    disabled
-                  />
-                ) : field.type === 'select' ? (
-                  <select style={fieldStyle} className="w-full" disabled>
-                    <option>Selecione...</option>
-                    {field.options?.map((opt: string) => (
-                      <option key={opt}>{opt}</option>
-                    ))}
-                  </select>
-                ) : field.type === 'radio' || field.type === 'checkbox' ? (
-                  <div className="space-y-2">
-                    {field.options?.map((opt: string) => (
-                      <label key={opt} className="flex items-center space-x-2">
-                        <input type={field.type} disabled />
-                        <span>{opt}</span>
-                      </label>
-                    ))}
-                  </div>
-                ) : (
-                  <input
-                    type={field.type}
-                    placeholder={field.placeholder}
-                    style={fieldStyle}
-                    className="w-full"
-                    disabled
-                  />
-                )}
-              </div>
-            ))
-          ) : (
-            <p className="text-gray-400 text-center py-8">
-              Adicione campos na aba "Campos" para visualizar aqui
-            </p>
-          )}
-          
-          <button style={buttonStyle} className="w-full font-medium">
-            Enviar Formulário
-          </button>
-        </div>
+        {renderFields()}
+        
+        <button style={buttonStyle} className="w-full font-medium mt-6">
+          Enviar Formulário
+        </button>
       </div>
     )
   }
@@ -432,7 +637,7 @@ export default function FormBuilderPage() {
               </CardContent>
             </Card>
 
-            {/* Tabs para Campos e Estilos */}
+            {/* Tabs para Campos, Layout e Estilos */}
             <Card>
               <CardContent className="p-0">
                 <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -441,17 +646,23 @@ export default function FormBuilderPage() {
                       <Settings className="h-4 w-4 mr-2" />
                       Campos
                     </TabsTrigger>
+                    <TabsTrigger value="layout" className="flex-1">
+                      <Layout className="h-4 w-4 mr-2" />
+                      Layout
+                    </TabsTrigger>
                     <TabsTrigger value="style" className="flex-1">
                       <Palette className="h-4 w-4 mr-2" />
-                      Personalização
+                      Estilo
                     </TabsTrigger>
                   </TabsList>
 
                   {/* Tab de Campos */}
                   <TabsContent value="fields" className="p-6 space-y-4">
-                    {/* Adicionar novo campo */}
+                    {/* Adicionar ou editar campo */}
                     <div className="space-y-4 border-b pb-4">
-                      <h3 className="font-semibold">Adicionar Campo</h3>
+                      <h3 className="font-semibold">
+                        {editingFieldId ? 'Editar Campo' : 'Adicionar Campo'}
+                      </h3>
                       
                       <div className="grid gap-4 md:grid-cols-2">
                         <div>
@@ -519,6 +730,37 @@ export default function FormBuilderPage() {
                             </div>
                           )}
 
+                          {/* Layout das opções */}
+                          <div className="flex gap-2">
+                            <select
+                              className="px-3 py-2 border rounded-md text-sm"
+                              value={currentField.optionsLayout}
+                              onChange={(e) => setCurrentField({
+                                ...currentField, 
+                                optionsLayout: e.target.value as 'vertical' | 'horizontal' | 'grid'
+                              })}
+                            >
+                              <option value="vertical">Layout Vertical</option>
+                              <option value="horizontal">Layout Horizontal</option>
+                              <option value="grid">Layout Grid</option>
+                            </select>
+                            
+                            {currentField.optionsLayout === 'grid' && (
+                              <Input
+                                type="number"
+                                min="2"
+                                max="4"
+                                value={currentField.optionsColumns}
+                                onChange={(e) => setCurrentField({
+                                  ...currentField,
+                                  optionsColumns: parseInt(e.target.value) || 2
+                                })}
+                                placeholder="Colunas"
+                                className="w-24"
+                              />
+                            )}
+                          </div>
+
                           <div className="flex gap-2">
                             <Input
                               value={newOption}
@@ -537,36 +779,81 @@ export default function FormBuilderPage() {
                           </div>
 
                           {currentField.options.length > 0 && (
-                            <div className="space-y-2 max-h-32 overflow-y-auto border rounded p-2">
+                            <div className="space-y-2 max-h-48 overflow-y-auto border rounded p-2">
                               {currentField.options.map((option, index) => (
                                 <div key={option.id} className="flex items-center gap-2 bg-white p-2 rounded">
-                                  <span className="flex-1">{option.value}</span>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => moveOptionUp(index)}
-                                    disabled={index === 0}
-                                  >
-                                    <ArrowUp className="h-3 w-3" />
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => moveOptionDown(index)}
-                                    disabled={index === currentField.options.length - 1}
-                                  >
-                                    <ArrowDown className="h-3 w-3" />
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => removeOption(option.id)}
-                                  >
-                                    <X className="h-3 w-3 text-red-500" />
-                                  </Button>
+                                  {option.isEditing ? (
+                                    <>
+                                      <Input
+                                        defaultValue={option.value}
+                                        onKeyPress={(e) => {
+                                          if (e.key === 'Enter') {
+                                            e.preventDefault()
+                                            saveOptionEdit(option.id, (e.target as HTMLInputElement).value)
+                                          }
+                                        }}
+                                        className="flex-1 h-8"
+                                        autoFocus
+                                      />
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={(e) => {
+                                          const input = e.currentTarget.parentElement?.querySelector('input')
+                                          if (input) saveOptionEdit(option.id, input.value)
+                                        }}
+                                      >
+                                        <Check className="h-3 w-3 text-green-600" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => cancelOptionEdit(option.id)}
+                                      >
+                                        <X className="h-3 w-3 text-red-500" />
+                                      </Button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="flex-1">{option.value}</span>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => startEditOption(option.id)}
+                                      >
+                                        <Edit2 className="h-3 w-3" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => moveOptionUp(index)}
+                                        disabled={index === 0}
+                                      >
+                                        <ArrowUp className="h-3 w-3" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => moveOptionDown(index)}
+                                        disabled={index === currentField.options.length - 1}
+                                      >
+                                        <ArrowDown className="h-3 w-3" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => removeOption(option.id)}
+                                      >
+                                        <X className="h-3 w-3 text-red-500" />
+                                      </Button>
+                                    </>
+                                  )}
                                 </div>
                               ))}
                             </div>
@@ -585,14 +872,33 @@ export default function FormBuilderPage() {
                         </label>
                       </div>
 
-                      <Button 
-                        onClick={addField} 
-                        disabled={!currentField.label}
-                        className="w-full"
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Adicionar Campo ao Formulário
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button 
+                          onClick={addOrUpdateField} 
+                          disabled={!currentField.label}
+                          className="flex-1"
+                        >
+                          {editingFieldId ? (
+                            <>
+                              <Check className="h-4 w-4 mr-2" />
+                              Atualizar Campo
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="h-4 w-4 mr-2" />
+                              Adicionar Campo ao Formulário
+                            </>
+                          )}
+                        </Button>
+                        {editingFieldId && (
+                          <Button
+                            onClick={cancelEdit}
+                            variant="outline"
+                          >
+                            Cancelar
+                          </Button>
+                        )}
+                      </div>
                     </div>
 
                     {/* Lista de campos adicionados */}
@@ -615,10 +921,18 @@ export default function FormBuilderPage() {
                                     {field.type}
                                     {field.required && " • Obrigatório"}
                                     {field.options && ` • ${field.options.length} opções`}
+                                    {field.optionsLayout && field.optionsLayout !== 'vertical' && ` • ${field.optionsLayout}`}
                                   </p>
                                 </div>
                               </div>
                               <div className="flex items-center space-x-1">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => startEditField(field)}
+                                >
+                                  <Edit2 className="h-4 w-4" />
+                                </Button>
                                 <Button
                                   size="sm"
                                   variant="ghost"
@@ -648,6 +962,17 @@ export default function FormBuilderPage() {
                         </div>
                       )}
                     </div>
+                  </TabsContent>
+
+                  {/* Tab de Layout */}
+                  <TabsContent value="layout" className="p-6">
+                    <FormLayoutEditor
+                      fields={form.fields}
+                      layout={form.layout}
+                      onUpdateField={updateField}
+                      onUpdateLayout={(layout) => setForm({...form, layout})}
+                      onReorderFields={reorderFields}
+                    />
                   </TabsContent>
 
                   {/* Tab de Personalização */}
