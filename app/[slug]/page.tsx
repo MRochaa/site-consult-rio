@@ -321,85 +321,86 @@ export default function PublicFormPage() {
   }
 
   // Criar os objetos de estilo ANTES do return
-const containerStyle: React.CSSProperties = {
-  backgroundColor: formStyle.backgroundColor || undefined,
-  backgroundImage: formStyle.backgroundGradient || formStyle.backgroundImage || 'none',
-  fontFamily: formStyle.fontFamily || 'inherit',
-  minHeight: '100vh',
-  paddingTop: '2rem',
-  paddingBottom: '2rem'
-}
+  const containerStyle: React.CSSProperties = {
+    backgroundColor: formStyle.backgroundColor || undefined,
+    backgroundImage: formStyle.backgroundGradient || formStyle.backgroundImage || 'none',
+    fontFamily: formStyle.fontFamily || 'inherit',
+    minHeight: '100vh',
+    paddingTop: '2rem',
+    paddingBottom: '2rem'
+  }
 
-const cardStyle: React.CSSProperties = {
-  padding: formStyle.containerPadding || undefined,
-  borderRadius: formStyle.containerBorderRadius || undefined,
-  boxShadow: formStyle.containerShadow || undefined,
-}
+  const cardStyle: React.CSSProperties = {
+    padding: formStyle.containerPadding || undefined,
+    borderRadius: formStyle.containerBorderRadius || undefined,
+    boxShadow: formStyle.containerShadow || undefined,
+  }
 
-const headingStyle: React.CSSProperties = {
-  color: formStyle.headingColor || undefined,
-  fontSize: formStyle.headingSize || undefined,
-  textAlign: formStyle.headingAlign as any || undefined,
-}
+  const headingStyle: React.CSSProperties = {
+    color: formStyle.headingColor || undefined,
+    fontSize: formStyle.headingSize || undefined,
+    textAlign: formStyle.headingAlign as any || undefined,
+  }
 
-const descriptionStyle: React.CSSProperties = {
-  color: formStyle.descriptionColor || undefined,
-  fontSize: formStyle.descriptionSize || undefined,
-}
+  const descriptionStyle: React.CSSProperties = {
+    color: formStyle.descriptionColor || undefined,
+    fontSize: formStyle.descriptionSize || undefined,
+  }
 
-const buttonStyle: React.CSSProperties = {
-  backgroundColor: formStyle.buttonBackgroundColor || undefined,
-  color: formStyle.buttonTextColor || undefined,
-  borderRadius: formStyle.buttonBorderRadius || undefined,
-  padding: formStyle.buttonPadding || undefined,
-  fontSize: formStyle.buttonFontSize || undefined,
-}
+  const buttonStyle: React.CSSProperties = {
+    backgroundColor: formStyle.buttonBackgroundColor || undefined,
+    color: formStyle.buttonTextColor || undefined,
+    borderRadius: formStyle.buttonBorderRadius || undefined,
+    padding: formStyle.buttonPadding || undefined,
+    fontSize: formStyle.buttonFontSize || undefined,
+  }
 
-const fieldStyle: React.CSSProperties = {
-  backgroundColor: formStyle.fieldBackgroundColor || undefined,
-  borderColor: formStyle.fieldBorderColor || undefined,
-  borderWidth: formStyle.fieldBorderWidth || undefined,
-  borderRadius: formStyle.fieldBorderRadius || undefined,
-  color: formStyle.fieldTextColor || undefined,
-  fontSize: formStyle.fieldTextSize || undefined,
-  height: formStyle.fieldHeight || undefined,
-  padding: formStyle.fieldPadding || undefined,
-}
+  const fieldStyle: React.CSSProperties = {
+    backgroundColor: formStyle.fieldBackgroundColor || undefined,
+    borderColor: formStyle.fieldBorderColor || undefined,
+    borderWidth: formStyle.fieldBorderWidth || undefined,
+    borderRadius: formStyle.fieldBorderRadius || undefined,
+    color: formStyle.fieldTextColor || undefined,
+    fontSize: formStyle.fieldTextSize || undefined,
+    height: formStyle.fieldHeight || undefined,
+    padding: formStyle.fieldPadding || undefined,
+  }
 
-// Agora o return atualizado
-return (
-  <div style={containerStyle}>
-    <div className="max-w-3xl mx-auto px-4">
-      <Card className="backdrop-blur-md bg-white/95" style={cardStyle}>
-        <CardHeader>
-          <CardTitle style={headingStyle}>{form?.title}</CardTitle>
-          {form?.description && (
-            <CardDescription style={descriptionStyle}>
-              {form.description}
-            </CardDescription>
-          )}
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {form?.fields?.map((field: FormField) => renderField(field))}
-            
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded">
-                {error}
-              </div>
+  // Return do componente
+  return (
+    <div style={containerStyle}>
+      <div className="max-w-3xl mx-auto px-4">
+        <Card className="backdrop-blur-md bg-white/95" style={cardStyle}>
+          <CardHeader>
+            <CardTitle style={headingStyle}>{form?.title}</CardTitle>
+            {form?.description && (
+              <CardDescription style={descriptionStyle}>
+                {form.description}
+              </CardDescription>
             )}
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {form?.fields?.map((field: FormField) => renderField(field))}
+              
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded">
+                  {error}
+                </div>
+              )}
 
-            <Button
-              type="submit"
-              className="w-full"
-              style={buttonStyle}
-              disabled={submitting}
-            >
-              {submitting ? "Enviando..." : "Enviar Formulário"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+              <Button
+                type="submit"
+                className="w-full"
+                style={buttonStyle}
+                disabled={submitting}
+              >
+                {submitting ? "Enviando..." : "Enviar Formulário"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </div>
-  </div>
-)
+  )
+}
