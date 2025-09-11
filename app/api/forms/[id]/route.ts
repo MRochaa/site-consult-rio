@@ -78,6 +78,8 @@ export async function PUT(
       title: body.title,
       description: body.description,
       fields: body.fields,
+      // Atualizar o estilo quando enviado pelo builder
+      style: body.style,
       is_active: body.is_active !== undefined ? body.is_active : true
     });
     

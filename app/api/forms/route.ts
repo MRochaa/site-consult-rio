@@ -82,6 +82,8 @@ export async function POST(request: NextRequest) {
       title: body.title,
       description: body.description,
       fields: body.fields,
+      // Garantir que o estilo enviado pelo builder seja persistido
+      style: body.style || undefined,
       is_active: true
     });
     

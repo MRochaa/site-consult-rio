@@ -20,7 +20,9 @@ export async function GET(
       id: form.id,
       title: form.title,
       description: form.description,
-      fields: form.fields
+      fields: form.fields,
+      // Incluir o estilo para renderização pública customizada
+      style: form.style || undefined
     });
   } catch (error) {
     console.error('Error fetching form:', error);
