@@ -403,19 +403,3 @@ return (
     </div>
   </div>
 )
-
-              <Button
-              type="submit"
-              className="w-full"
-              style={buttonStyle}
-              disabled={submitting}
-            >
-              {submitting ? "Enviando..." : "Enviar Formulário"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
-  </div>
-)
-}
