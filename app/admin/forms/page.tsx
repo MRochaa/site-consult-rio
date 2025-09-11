@@ -721,44 +721,34 @@ export default function FormsAdminPage() {
                       {form.fields?.length || 0} campos
                     </p>
                     <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => window.open(`/${form.slug}`, '_blank')}
-                        className="backdrop-blur-sm bg-white/5 border-white/20 text-white hover:bg-white/10"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          navigator.clipboard.writeText(`${window.location.origin}/${form.slug}`)
-                          alert('Link copiado!')
-                        }}
-                        className="backdrop-blur-sm bg-white/5 border-white/20 text-white hover:bg-white/10"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => exportSubmissions(form.id)}
-                        className="backdrop-blur-sm bg-white/5 border-white/20 text-white hover:bg-white/10"
-                      >
-                        <Download className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setEditingForm(form)
-                          setFormData(form)
-                          setShowBuilder(true)
-                        }}
-                        className="backdrop-blur-sm bg-white/5 border-white/20 text-white hover:bg-white/10"
-                      >
-                         <Button
+  <Button
+    size="sm"
+    variant="outline"
+    onClick={() => window.open(`/${form.slug}`, '_blank')}
+    className="backdrop-blur-sm bg-white/5 border-white/20 text-white hover:bg-white/10"
+  >
+    <Eye className="h-4 w-4" />
+  </Button>
+  <Button
+    size="sm"
+    variant="outline"
+    onClick={() => {
+      navigator.clipboard.writeText(`${window.location.origin}/${form.slug}`)
+      alert('Link copiado!')
+    }}
+    className="backdrop-blur-sm bg-white/5 border-white/20 text-white hover:bg-white/10"
+  >
+    <Copy className="h-4 w-4" />
+  </Button>
+  <Button
+    size="sm"
+    variant="outline"
+    onClick={() => exportSubmissions(form.id)}
+    className="backdrop-blur-sm bg-white/5 border-white/20 text-white hover:bg-white/10"
+  >
+    <Download className="h-4 w-4" />
+  </Button>
+  <Button
     size="sm"
     variant="outline"
     onClick={() => router.push(`/admin/forms/builder/${form.id}`)}
@@ -766,7 +756,6 @@ export default function FormsAdminPage() {
   >
     <Palette className="h-4 w-4" />
   </Button>
-  
   <Button
     size="sm"
     variant="outline"
@@ -777,9 +766,9 @@ export default function FormsAdminPage() {
     }}
     className="backdrop-blur-sm bg-white/5 border-white/20 text-white hover:bg-white/10"
   >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    </div>
+    <Edit className="h-4 w-4" />
+  </Button>
+</div>
                   </div>
                 </CardContent>
               </Card>
