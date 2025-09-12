@@ -9,6 +9,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { SignaturePad } from "@/components/signature-pad"
 import { CheckCircle } from "lucide-react"
 
+interface FieldPosition {
+  row: number
+  col: number
+  width: number
+  height?: number
+}
+
 interface FormField {
   id: string
   type: 'text' | 'email' | 'tel' | 'number' | 'textarea' | 'select' | 'radio' | 'checkbox' | 'date' | 'signature'
@@ -17,11 +24,15 @@ interface FormField {
   required?: boolean
   placeholder?: string
   options?: string[] // Para select, radio, checkbox
+  multipleChoice?: boolean // Para checkbox - permitir múltiplas seleções
   condition?: {
     field: string // ID do campo que controla este
     operator: 'equals' | 'not_equals' | 'contains'
     value: string
   }
+  position?: FieldPosition // Posição no grid para layout personalizado
+  optionsLayout?: 'vertical' | 'horizontal' | 'grid' // Layout das opções
+  optionsColumns?: number // Número de colunas quando optionsLayout é 'grid'
 }
 
 export default function PublicFormPage() {
@@ -41,21 +52,21 @@ export default function PublicFormPage() {
   }, [slug])
 
   const fetchForm = async () => {
-  try {
-    const response = await fetch(`/api/forms/public/${slug}`)
-    if (!response.ok) {
-      setError("Formulário não encontrado")
-      return
+    try {
+      const response = await fetch(`/api/forms/public/${slug}`)
+      if (!response.ok) {
+        setError("Formulário não encontrado")
+        return
+      }
+      const data = await response.json()
+      setForm(data)
+      setFormStyle(data.style || {})
+    } catch (err) {
+      setError("Erro ao carregar formulário")
+    } finally {
+      setLoading(false)
     }
-    const data = await response.json()
-    setForm(data)
-    setFormStyle(data.style || {}) // ADICIONE ESTA LINHA
-  } catch (err) {
-    setError("Erro ao carregar formulário")
-  } finally {
-    setLoading(false)
   }
-}
 
   const shouldShowField = (field: FormField): boolean => {
     if (!field.condition) return true
@@ -75,35 +86,65 @@ export default function PublicFormPage() {
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault()
-  setSubmitting(true)
-  setError("")
+    e.preventDefault()
+    setSubmitting(true)
+    setError("")
 
-  try {
-    const response = await fetch(`/api/forms/public/${slug}/submit`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        data: formData,
-        signature: formData.signature || null // Pega a assinatura do formData
+    try {
+      const response = await fetch(`/api/forms/public/${slug}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: formData,
+          signature: formData.signature || null
+        })
       })
-    })
 
-    if (!response.ok) {
-      const data = await response.json()
-      throw new Error(data.error || 'Erro ao enviar formulário')
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Erro ao enviar formulário')
+      }
+
+      setSubmitted(true)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setSubmitting(false)
     }
-
-    setSubmitted(true)
-  } catch (err: any) {
-    setError(err.message)
-  } finally {
-    setSubmitting(false)
   }
-}
 
+  // Função auxiliar para determinar classe CSS do layout de opções
+  const getOptionsClass = (field: FormField) => {
+    if (field.optionsLayout === 'horizontal') {
+      return 'flex flex-wrap gap-4'
+    } else if (field.optionsLayout === 'grid') {
+      const cols = field.optionsColumns || 2
+      // Usar classes Tailwind explícitas para evitar problemas de compilação
+      switch (cols) {
+        case 2: return 'grid grid-cols-2 gap-2'
+        case 3: return 'grid grid-cols-3 gap-2'
+        case 4: return 'grid grid-cols-4 gap-2'
+        default: return 'grid grid-cols-2 gap-2'
+      }
+    }
+    return 'space-y-2' // vertical (padrão)
+  }
+
+  // Renderizar um campo individual
   const renderField = (field: FormField) => {
     if (!shouldShowField(field)) return null
+
+    // Estilos do campo baseados na personalização
+    const fieldStyle: React.CSSProperties = {
+      backgroundColor: formStyle.fieldBackgroundColor || undefined,
+      borderColor: formStyle.fieldBorderColor || undefined,
+      borderWidth: formStyle.fieldBorderWidth || undefined,
+      borderRadius: formStyle.fieldBorderRadius || undefined,
+      color: formStyle.fieldTextColor || undefined,
+      fontSize: formStyle.fieldTextSize || undefined,
+      height: formStyle.fieldHeight || undefined,
+      padding: formStyle.fieldPadding || undefined,
+    }
 
     switch (field.type) {
       case 'text':
@@ -172,7 +213,7 @@ export default function PublicFormPage() {
         return (
           <div key={field.id} className="space-y-2">
             <Label>{field.label} {field.required && <span className="text-red-500">*</span>}</Label>
-            <div className="space-y-2">
+            <div className={getOptionsClass(field)}>
               {field.options?.map((option) => (
                 <label key={option} className="flex items-center space-x-2">
                   <input
@@ -191,99 +232,166 @@ export default function PublicFormPage() {
         )
 
       case 'checkbox':
-  // Se tem opções, é checkbox múltiplo
-  if (field.options && field.options.length > 0) {
-    return (
-      <div key={field.id} className="space-y-2">
-        <Label>{field.label} {field.required && <span className="text-red-500">*</span>}</Label>
-        <div className="space-y-2">
-          {field.multipleChoice && (
-            <p className="text-sm text-gray-600">Selecione uma ou mais opções</p>
-          )}
-          {field.options.map((option: string) => (
-            <label key={option} className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                value={option}
-                checked={Array.isArray(formData[field.name]) 
-                  ? formData[field.name].includes(option)
-                  : formData[field.name] === option}
-                onChange={(e) => {
-                  if (field.multipleChoice) {
-                    // Múltipla seleção
-                    const currentValues = Array.isArray(formData[field.name]) 
-                      ? formData[field.name] 
-                      : []
-                    
-                    if (e.target.checked) {
-                      setFormData({
-                        ...formData, 
-                        [field.name]: [...currentValues, option]
-                      })
-                    } else {
-                      setFormData({
-                        ...formData, 
-                        [field.name]: currentValues.filter((v: string) => v !== option)
-                      })
-                    }
-                  } else {
-                    // Seleção única (comportamento de radio com visual de checkbox)
-                    setFormData({
-                      ...formData, 
-                      [field.name]: e.target.checked ? option : ''
-                    })
-                  }
-                }}
-              />
-              <span>{option}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-    )
-  } else {
-    // Checkbox simples (sim/não)
-    return (
-      <div key={field.id} className="space-y-2">
-        <label className="flex items-center space-x-2">
-          <input
-            type="checkbox"
-            required={field.required}
-            checked={formData[field.name] || false}
-            onChange={(e) => setFormData({...formData, [field.name]: e.target.checked})}
-          />
-          <span>{field.label} {field.required && <span className="text-red-500">*</span>}</span>
-        </label>
-      </div>
-    )
-  }
+        // Se tem opções, é checkbox múltiplo
+        if (field.options && field.options.length > 0) {
+          return (
+            <div key={field.id} className="space-y-2">
+              <Label>{field.label} {field.required && <span className="text-red-500">*</span>}</Label>
+              {field.multipleChoice && (
+                <p className="text-sm text-gray-600">Selecione uma ou mais opções</p>
+              )}
+              <div className={getOptionsClass(field)}>
+                {field.options.map((option: string) => (
+                  <label key={option} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      value={option}
+                      checked={Array.isArray(formData[field.name]) 
+                        ? formData[field.name].includes(option)
+                        : formData[field.name] === option}
+                      onChange={(e) => {
+                        if (field.multipleChoice) {
+                          // Múltipla seleção
+                          const currentValues = Array.isArray(formData[field.name]) 
+                            ? formData[field.name] 
+                            : []
+                          
+                          if (e.target.checked) {
+                            setFormData({
+                              ...formData, 
+                              [field.name]: [...currentValues, option]
+                            })
+                          } else {
+                            setFormData({
+                              ...formData, 
+                              [field.name]: currentValues.filter((v: string) => v !== option)
+                            })
+                          }
+                        } else {
+                          // Seleção única (comportamento de radio com visual de checkbox)
+                          setFormData({
+                            ...formData, 
+                            [field.name]: e.target.checked ? option : ''
+                          })
+                        }
+                      }}
+                    />
+                    <span>{option}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )
+        } else {
+          // Checkbox simples (sim/não)
+          return (
+            <div key={field.id} className="space-y-2">
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  required={field.required}
+                  checked={formData[field.name] || false}
+                  onChange={(e) => setFormData({...formData, [field.name]: e.target.checked})}
+                />
+                <span>{field.label} {field.required && <span className="text-red-500">*</span>}</span>
+              </label>
+            </div>
+          )
+        }
 
       case 'signature':
         return (
           <div key={field.id} className="space-y-2">
             <Label>{field.label} {field.required && <span className="text-red-500">*</span>}</Label>
-      {!formData[field.name] ? (
-        <SignaturePad onSave={(sig) => setFormData({...formData, [field.name]: sig})} />
-      ) : (
-        <div className="space-y-2">
-          <img src={formData[field.name]} alt="Assinatura" className="border rounded p-2 bg-white" />
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setFormData({...formData, [field.name]: ""})}
-          >
-            Refazer Assinatura
-          </Button>
-        </div>
-      )}
-    </div>
-  )
+            {!formData[field.name] ? (
+              <SignaturePad onSave={(sig) => setFormData({...formData, [field.name]: sig})} />
+            ) : (
+              <div className="space-y-2">
+                <img src={formData[field.name]} alt="Assinatura" className="border rounded p-2 bg-white" />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setFormData({...formData, [field.name]: ""})}
+                >
+                  Refazer Assinatura
+                </Button>
+              </div>
+            )}
+          </div>
+        )
 
       default:
         return null
     }
   }
 
+  // Renderizar todos os campos com base no layout
+  const renderFields = () => {
+    if (!form?.fields || form.fields.length === 0) {
+      return (
+        <p className="text-gray-400 text-center py-8">
+          Nenhum campo disponível neste formulário
+        </p>
+      )
+    }
+
+    const layout = formStyle?.layout || 'single'
+    
+    // Layout personalizado com posições absolutas
+    if (layout === 'custom' && form.fields.some((f: FormField) => f.position)) {
+      return (
+        <div className="relative min-h-[300px]">
+          {form.fields.map((field: FormField) => {
+            if (!shouldShowField(field)) return null
+            
+            const position = field.position || { row: 0, col: 0, width: 12 }
+            return (
+              <div
+                key={field.id}
+                className="absolute"
+                style={{
+                  top: `${position.row * 80}px`,
+                  left: `${(position.col / 12) * 100}%`,
+                  width: `calc(${(position.width / 12) * 100}% - 8px)`,
+                  paddingRight: position.col + position.width < 12 ? '8px' : '0'
+                }}
+              >
+                {renderField(field)}
+              </div>
+            )
+          })}
+        </div>
+      )
+    }
+    
+    // Layout de duas colunas
+    if (layout === 'two-column') {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {form.fields.map((field: FormField) => {
+            if (!shouldShowField(field)) return null
+            return (
+              <div key={field.id}>
+                {renderField(field)}
+              </div>
+            )
+          })}
+        </div>
+      )
+    }
+    
+    // Layout padrão (uma coluna)
+    return (
+      <div className="space-y-6">
+        {form.fields.map((field: FormField) => {
+          if (!shouldShowField(field)) return null
+          return renderField(field)
+        })}
+      </div>
+    )
+  }
+
+  // Estados de carregamento e erro
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#1b2370] to-[#0f1a5c] flex items-center justify-center">
@@ -304,6 +412,7 @@ export default function PublicFormPage() {
     )
   }
 
+  // Estado de formulário enviado com sucesso
   if (submitted) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#1b2370] to-[#0f1a5c] flex items-center justify-center p-4">
@@ -320,7 +429,7 @@ export default function PublicFormPage() {
     )
   }
 
-  // Criar os objetos de estilo ANTES do return
+  // Criar os objetos de estilo para o container e elementos
   const containerStyle: React.CSSProperties = {
     backgroundColor: formStyle.backgroundColor || undefined,
     backgroundImage: formStyle.backgroundGradient || formStyle.backgroundImage || 'none',
@@ -355,18 +464,7 @@ export default function PublicFormPage() {
     fontSize: formStyle.buttonFontSize || undefined,
   }
 
-  const fieldStyle: React.CSSProperties = {
-    backgroundColor: formStyle.fieldBackgroundColor || undefined,
-    borderColor: formStyle.fieldBorderColor || undefined,
-    borderWidth: formStyle.fieldBorderWidth || undefined,
-    borderRadius: formStyle.fieldBorderRadius || undefined,
-    color: formStyle.fieldTextColor || undefined,
-    fontSize: formStyle.fieldTextSize || undefined,
-    height: formStyle.fieldHeight || undefined,
-    padding: formStyle.fieldPadding || undefined,
-  }
-
-  // Return do componente
+  // Renderização principal do formulário
   return (
     <div style={containerStyle}>
       <div className="max-w-3xl mx-auto px-4">
@@ -380,18 +478,21 @@ export default function PublicFormPage() {
             )}
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {form?.fields?.map((field: FormField) => renderField(field))}
+            <form onSubmit={handleSubmit}>
+              {/* Renderizar campos com suporte aos diferentes layouts */}
+              {renderFields()}
               
+              {/* Mensagem de erro se houver */}
               {error && (
-                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded">
+                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded mt-6">
                   {error}
                 </div>
               )}
 
+              {/* Botão de envio */}
               <Button
                 type="submit"
-                className="w-full"
+                className="w-full mt-6"
                 style={buttonStyle}
                 disabled={submitting}
               >
