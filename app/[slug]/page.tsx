@@ -23,16 +23,16 @@ interface FormField {
   name: string
   required?: boolean
   placeholder?: string
-  options?: string[] // Para select, radio, checkbox
-  multipleChoice?: boolean // Para checkbox - permitir múltiplas seleções
+  options?: string[]
+  multipleChoice?: boolean
   condition?: {
-    field: string // ID do campo que controla este
+    field: string
     operator: 'equals' | 'not_equals' | 'contains'
     value: string
   }
-  position?: FieldPosition // Posição no grid para layout personalizado
-  optionsLayout?: 'vertical' | 'horizontal' | 'grid' // Layout das opções
-  optionsColumns?: number // Número de colunas quando optionsLayout é 'grid'
+  position?: FieldPosition
+  optionsLayout?: 'vertical' | 'horizontal' | 'grid'
+  optionsColumns?: number
 }
 
 export default function PublicFormPage() {
@@ -113,13 +113,12 @@ export default function PublicFormPage() {
     }
   }
 
-  // Função auxiliar para determinar classe CSS do layout de opções
+  // Função para determinar classe CSS do layout de opções
   const getOptionsClass = (field: FormField) => {
     if (field.optionsLayout === 'horizontal') {
       return 'flex flex-wrap gap-4'
     } else if (field.optionsLayout === 'grid') {
       const cols = field.optionsColumns || 2
-      // Usar classes Tailwind explícitas para evitar problemas de compilação
       switch (cols) {
         case 2: return 'grid grid-cols-2 gap-2'
         case 3: return 'grid grid-cols-3 gap-2'
@@ -127,23 +126,31 @@ export default function PublicFormPage() {
         default: return 'grid grid-cols-2 gap-2'
       }
     }
-    return 'space-y-2' // vertical (padrão)
+    return 'space-y-2'
   }
 
-  // Renderizar um campo individual
+  // Renderizar um campo individual com estilos aplicados corretamente
   const renderField = (field: FormField) => {
     if (!shouldShowField(field)) return null
 
-    // Estilos do campo baseados na personalização
+    // Estilos do campo baseados na personalização - CORRIGIDO
     const fieldStyle: React.CSSProperties = {
-      backgroundColor: formStyle.fieldBackgroundColor || undefined,
-      borderColor: formStyle.fieldBorderColor || undefined,
-      borderWidth: formStyle.fieldBorderWidth || undefined,
-      borderRadius: formStyle.fieldBorderRadius || undefined,
-      color: formStyle.fieldTextColor || undefined,
-      fontSize: formStyle.fieldTextSize || undefined,
-      height: formStyle.fieldHeight || undefined,
-      padding: formStyle.fieldPadding || undefined,
+      backgroundColor: formStyle.fieldBackgroundColor || '#ffffff',
+      borderColor: formStyle.fieldBorderColor || '#d1d5db',
+      borderWidth: formStyle.fieldBorderWidth || '1px',
+      borderStyle: 'solid', // Adicionar estilo de borda
+      borderRadius: formStyle.fieldBorderRadius || '0.375rem',
+      color: formStyle.fieldTextColor || '#000000',
+      fontSize: formStyle.fieldTextSize || '1rem',
+      height: field.type === 'textarea' ? 'auto' : (formStyle.fieldHeight || 'auto'),
+      padding: formStyle.fieldPadding || '0.5rem',
+    }
+
+    // Estilo para labels
+    const labelStyle: React.CSSProperties = {
+      color: formStyle.headingColor || '#000000',
+      fontSize: formStyle.labelSize || '0.875rem',
+      fontWeight: formStyle.labelWeight || '500',
     }
 
     switch (field.type) {
@@ -154,7 +161,7 @@ export default function PublicFormPage() {
       case 'date':
         return (
           <div key={field.id} className="space-y-2">
-            <Label htmlFor={field.id}>
+            <Label htmlFor={field.id} style={labelStyle}>
               {field.label} {field.required && <span className="text-red-500">*</span>}
             </Label>
             <Input
@@ -165,6 +172,7 @@ export default function PublicFormPage() {
               value={formData[field.name] || ''}
               onChange={(e) => setFormData({...formData, [field.name]: e.target.value})}
               style={fieldStyle}
+              className="w-full"
             />
           </div>
         )
@@ -172,12 +180,12 @@ export default function PublicFormPage() {
       case 'textarea':
         return (
           <div key={field.id} className="space-y-2">
-            <Label htmlFor={field.id}>
+            <Label htmlFor={field.id} style={labelStyle}>
               {field.label} {field.required && <span className="text-red-500">*</span>}
             </Label>
             <textarea
               id={field.id}
-              className="w-full min-h-[100px] px-3 py-2 border rounded-md"
+              className="w-full min-h-[100px]"
               placeholder={field.placeholder}
               required={field.required}
               value={formData[field.name] || ''}
@@ -190,12 +198,12 @@ export default function PublicFormPage() {
       case 'select':
         return (
           <div key={field.id} className="space-y-2">
-            <Label htmlFor={field.id}>
+            <Label htmlFor={field.id} style={labelStyle}>
               {field.label} {field.required && <span className="text-red-500">*</span>}
             </Label>
             <select
               id={field.id}
-              className="w-full px-3 py-2 border rounded-md"
+              className="w-full"
               required={field.required}
               value={formData[field.name] || ''}
               onChange={(e) => setFormData({...formData, [field.name]: e.target.value})}
@@ -212,7 +220,9 @@ export default function PublicFormPage() {
       case 'radio':
         return (
           <div key={field.id} className="space-y-2">
-            <Label>{field.label} {field.required && <span className="text-red-500">*</span>}</Label>
+            <Label style={labelStyle}>
+              {field.label} {field.required && <span className="text-red-500">*</span>}
+            </Label>
             <div className={getOptionsClass(field)}>
               {field.options?.map((option) => (
                 <label key={option} className="flex items-center space-x-2">
@@ -224,7 +234,7 @@ export default function PublicFormPage() {
                     checked={formData[field.name] === option}
                     onChange={(e) => setFormData({...formData, [field.name]: e.target.value})}
                   />
-                  <span>{option}</span>
+                  <span style={{ color: formStyle.fieldTextColor || '#000000' }}>{option}</span>
                 </label>
               ))}
             </div>
@@ -232,13 +242,16 @@ export default function PublicFormPage() {
         )
 
       case 'checkbox':
-        // Se tem opções, é checkbox múltiplo
         if (field.options && field.options.length > 0) {
           return (
             <div key={field.id} className="space-y-2">
-              <Label>{field.label} {field.required && <span className="text-red-500">*</span>}</Label>
+              <Label style={labelStyle}>
+                {field.label} {field.required && <span className="text-red-500">*</span>}
+              </Label>
               {field.multipleChoice && (
-                <p className="text-sm text-gray-600">Selecione uma ou mais opções</p>
+                <p className="text-sm" style={{ color: formStyle.descriptionColor || '#666666' }}>
+                  Selecione uma ou mais opções
+                </p>
               )}
               <div className={getOptionsClass(field)}>
                 {field.options.map((option: string) => (
@@ -251,7 +264,6 @@ export default function PublicFormPage() {
                         : formData[field.name] === option}
                       onChange={(e) => {
                         if (field.multipleChoice) {
-                          // Múltipla seleção
                           const currentValues = Array.isArray(formData[field.name]) 
                             ? formData[field.name] 
                             : []
@@ -268,7 +280,6 @@ export default function PublicFormPage() {
                             })
                           }
                         } else {
-                          // Seleção única (comportamento de radio com visual de checkbox)
                           setFormData({
                             ...formData, 
                             [field.name]: e.target.checked ? option : ''
@@ -276,14 +287,13 @@ export default function PublicFormPage() {
                         }
                       }}
                     />
-                    <span>{option}</span>
+                    <span style={{ color: formStyle.fieldTextColor || '#000000' }}>{option}</span>
                   </label>
                 ))}
               </div>
             </div>
           )
         } else {
-          // Checkbox simples (sim/não)
           return (
             <div key={field.id} className="space-y-2">
               <label className="flex items-center space-x-2">
@@ -293,7 +303,9 @@ export default function PublicFormPage() {
                   checked={formData[field.name] || false}
                   onChange={(e) => setFormData({...formData, [field.name]: e.target.checked})}
                 />
-                <span>{field.label} {field.required && <span className="text-red-500">*</span>}</span>
+                <span style={labelStyle}>
+                  {field.label} {field.required && <span className="text-red-500">*</span>}
+                </span>
               </label>
             </div>
           )
@@ -302,7 +314,9 @@ export default function PublicFormPage() {
       case 'signature':
         return (
           <div key={field.id} className="space-y-2">
-            <Label>{field.label} {field.required && <span className="text-red-500">*</span>}</Label>
+            <Label style={labelStyle}>
+              {field.label} {field.required && <span className="text-red-500">*</span>}
+            </Label>
             {!formData[field.name] ? (
               <SignaturePad onSave={(sig) => setFormData({...formData, [field.name]: sig})} />
             ) : (
@@ -325,7 +339,7 @@ export default function PublicFormPage() {
     }
   }
 
-  // Renderizar todos os campos com base no layout
+  // Renderizar campos com layouts responsivos e sem sobreposição
   const renderFields = () => {
     if (!form?.fields || form.fields.length === 0) {
       return (
@@ -337,34 +351,9 @@ export default function PublicFormPage() {
 
     const layout = formStyle?.layout || 'single'
     
-    // Layout personalizado com posições absolutas
-    if (layout === 'custom' && form.fields.some((f: FormField) => f.position)) {
-      return (
-        <div className="relative min-h-[300px]">
-          {form.fields.map((field: FormField) => {
-            if (!shouldShowField(field)) return null
-            
-            const position = field.position || { row: 0, col: 0, width: 12 }
-            return (
-              <div
-                key={field.id}
-                className="absolute"
-                style={{
-                  top: `${position.row * 80}px`,
-                  left: `${(position.col / 12) * 100}%`,
-                  width: `calc(${(position.width / 12) * 100}% - 8px)`,
-                  paddingRight: position.col + position.width < 12 ? '8px' : '0'
-                }}
-              >
-                {renderField(field)}
-              </div>
-            )
-          })}
-        </div>
-      )
-    }
+    // IMPORTANTE: Remover posicionamento absoluto para evitar sobreposições
+    // Usar flexbox/grid para layouts responsivos
     
-    // Layout de duas colunas
     if (layout === 'two-column') {
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -380,7 +369,7 @@ export default function PublicFormPage() {
       )
     }
     
-    // Layout padrão (uma coluna)
+    // Layout padrão (uma coluna) ou custom sem posicionamento absoluto
     return (
       <div className="space-y-6">
         {form.fields.map((field: FormField) => {
@@ -412,7 +401,6 @@ export default function PublicFormPage() {
     )
   }
 
-  // Estado de formulário enviado com sucesso
   if (submitted) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#1b2370] to-[#0f1a5c] flex items-center justify-center p-4">
@@ -429,78 +417,91 @@ export default function PublicFormPage() {
     )
   }
 
-  // Criar os objetos de estilo para o container e elementos
+  // CORRIGIDO: Aplicar estilos de fundo corretamente
   const containerStyle: React.CSSProperties = {
-    backgroundColor: formStyle.backgroundColor || undefined,
-    backgroundImage: formStyle.backgroundGradient || formStyle.backgroundImage || 'none',
-    fontFamily: formStyle.fontFamily || 'inherit',
+    backgroundColor: formStyle.backgroundColor || '#ffffff',
+    backgroundImage: formStyle.backgroundGradient 
+      ? formStyle.backgroundGradient 
+      : formStyle.backgroundImage 
+        ? formStyle.backgroundImage 
+        : 'none',
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    fontFamily: formStyle.fontFamily || 'system-ui',
     minHeight: '100vh',
-    paddingTop: '2rem',
-    paddingBottom: '2rem'
+    padding: '2rem 1rem',
   }
 
+  // Estilo do card com transparência para mostrar o fundo
   const cardStyle: React.CSSProperties = {
-    padding: formStyle.containerPadding || undefined,
-    borderRadius: formStyle.containerBorderRadius || undefined,
-    boxShadow: formStyle.containerShadow || undefined,
+    backgroundColor: formStyle.containerBackgroundColor || 'rgba(255, 255, 255, 0.95)',
+    padding: formStyle.containerPadding || '1.5rem',
+    borderRadius: formStyle.containerBorderRadius || '0.5rem',
+    boxShadow: formStyle.containerShadow || '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
   }
 
   const headingStyle: React.CSSProperties = {
-    color: formStyle.headingColor || undefined,
-    fontSize: formStyle.headingSize || undefined,
-    textAlign: formStyle.headingAlign as any || undefined,
+    color: formStyle.headingColor || '#111827',
+    fontSize: formStyle.headingSize || '2rem',
+    textAlign: formStyle.headingAlign as any || 'left',
+    fontWeight: 'bold',
   }
 
   const descriptionStyle: React.CSSProperties = {
-    color: formStyle.descriptionColor || undefined,
-    fontSize: formStyle.descriptionSize || undefined,
+    color: formStyle.descriptionColor || '#6b7280',
+    fontSize: formStyle.descriptionSize || '1rem',
   }
 
   const buttonStyle: React.CSSProperties = {
-    backgroundColor: formStyle.buttonBackgroundColor || undefined,
-    color: formStyle.buttonTextColor || undefined,
-    borderRadius: formStyle.buttonBorderRadius || undefined,
-    padding: formStyle.buttonPadding || undefined,
-    fontSize: formStyle.buttonFontSize || undefined,
+    backgroundColor: formStyle.buttonBackgroundColor || '#3b82f6',
+    color: formStyle.buttonTextColor || '#ffffff',
+    borderRadius: formStyle.buttonBorderRadius || '0.375rem',
+    padding: formStyle.buttonPadding || '0.75rem 1.5rem',
+    fontSize: formStyle.buttonFontSize || '1rem',
+    fontWeight: '500',
+    width: '100%',
+    border: 'none',
+    cursor: submitting ? 'not-allowed' : 'pointer',
+    opacity: submitting ? 0.5 : 1,
   }
 
-  // Renderização principal do formulário
+  // Renderização principal com estilos aplicados
   return (
     <div style={containerStyle}>
-      <div className="max-w-3xl mx-auto px-4">
-        <Card className="backdrop-blur-md bg-white/95" style={cardStyle}>
-          <CardHeader>
-            <CardTitle style={headingStyle}>{form?.title}</CardTitle>
+      <div className="max-w-3xl mx-auto">
+        <div style={cardStyle}>
+          {/* Header do formulário */}
+          <div className="mb-6">
+            <h1 style={headingStyle}>{form?.title || 'Formulário'}</h1>
             {form?.description && (
-              <CardDescription style={descriptionStyle}>
+              <p style={descriptionStyle} className="mt-2">
                 {form.description}
-              </CardDescription>
+              </p>
             )}
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit}>
-              {/* Renderizar campos com suporte aos diferentes layouts */}
-              {renderFields()}
-              
-              {/* Mensagem de erro se houver */}
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded mt-6">
-                  {error}
-                </div>
-              )}
+          </div>
 
-              {/* Botão de envio */}
-              <Button
-                type="submit"
-                className="w-full mt-6"
-                style={buttonStyle}
-                disabled={submitting}
-              >
-                {submitting ? "Enviando..." : "Enviar Formulário"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+          {/* Formulário */}
+          <form onSubmit={handleSubmit}>
+            {renderFields()}
+            
+            {/* Mensagem de erro */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded mt-6">
+                {error}
+              </div>
+            )}
+
+            {/* Botão de envio */}
+            <button
+              type="submit"
+              style={buttonStyle}
+              disabled={submitting}
+              className="mt-6 transition-opacity hover:opacity-90"
+            >
+              {submitting ? "Enviando..." : "Enviar Formulário"}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   )
