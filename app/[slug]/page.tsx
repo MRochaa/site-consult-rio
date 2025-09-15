@@ -133,12 +133,12 @@ export default function PublicFormPage() {
   const renderField = (field: FormField) => {
     if (!shouldShowField(field)) return null
 
-    // Estilos do campo baseados na personalização - CORRIGIDO
+    // Estilos do campo baseados na personalização
     const fieldStyle: React.CSSProperties = {
       backgroundColor: formStyle.fieldBackgroundColor || '#ffffff',
       borderColor: formStyle.fieldBorderColor || '#d1d5db',
       borderWidth: formStyle.fieldBorderWidth || '1px',
-      borderStyle: 'solid', // Adicionar estilo de borda
+      borderStyle: 'solid',
       borderRadius: formStyle.fieldBorderRadius || '0.375rem',
       color: formStyle.fieldTextColor || '#000000',
       fontSize: formStyle.fieldTextSize || '1rem',
@@ -351,9 +351,6 @@ export default function PublicFormPage() {
 
     const layout = formStyle?.layout || 'single'
     
-    // IMPORTANTE: Remover posicionamento absoluto para evitar sobreposições
-    // Usar flexbox/grid para layouts responsivos
-    
     if (layout === 'two-column') {
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -417,7 +414,10 @@ export default function PublicFormPage() {
     )
   }
 
-  // CORRIGIDO: Aplicar estilos de fundo corretamente
+  // Verificar se deve mostrar container
+  const showContainer = formStyle.showContainer !== false
+
+  // Aplicar estilos de fundo corretamente
   const containerStyle: React.CSSProperties = {
     backgroundColor: formStyle.backgroundColor || '#ffffff',
     backgroundImage: formStyle.backgroundGradient 
@@ -429,15 +429,18 @@ export default function PublicFormPage() {
     backgroundPosition: 'center',
     fontFamily: formStyle.fontFamily || 'system-ui',
     minHeight: '100vh',
-    padding: '2rem 1rem',
+    padding: showContainer ? (formStyle.containerMargin || '2rem 1rem') : '2rem 1rem',
   }
 
-  // Estilo do card com transparência para mostrar o fundo
-  const cardStyle: React.CSSProperties = {
+  // Estilo do card - apenas quando showContainer é true
+  const cardStyle: React.CSSProperties = showContainer ? {
     backgroundColor: formStyle.containerBackgroundColor || 'rgba(255, 255, 255, 0.95)',
     padding: formStyle.containerPadding || '1.5rem',
     borderRadius: formStyle.containerBorderRadius || '0.5rem',
     boxShadow: formStyle.containerShadow || '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+    opacity: formStyle.containerOpacity || 0.95,
+  } : {
+    padding: formStyle.containerPadding || '1.5rem',
   }
 
   const headingStyle: React.CSSProperties = {
@@ -469,39 +472,72 @@ export default function PublicFormPage() {
   return (
     <div style={containerStyle}>
       <div className="max-w-3xl mx-auto">
-        <div style={cardStyle}>
-          {/* Header do formulário */}
-          <div className="mb-6">
-            <h1 style={headingStyle}>{form?.title || 'Formulário'}</h1>
-            {form?.description && (
-              <p style={descriptionStyle} className="mt-2">
-                {form.description}
-              </p>
-            )}
+        {showContainer ? (
+          <div style={cardStyle}>
+            {/* Header do formulário */}
+            <div className="mb-6">
+              <h1 style={headingStyle}>{form?.title || 'Formulário'}</h1>
+              {form?.description && (
+                <p style={descriptionStyle} className="mt-2">
+                  {form.description}
+                </p>
+              )}
+            </div>
+
+            {/* Formulário */}
+            <form onSubmit={handleSubmit}>
+              {renderFields()}
+              
+              {/* Mensagem de erro */}
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded mt-6">
+                  {error}
+                </div>
+              )}
+
+              {/* Botão de envio */}
+              <button
+                type="submit"
+                style={buttonStyle}
+                disabled={submitting}
+                className="mt-6 transition-opacity hover:opacity-90"
+              >
+                {submitting ? "Enviando..." : "Enviar Formulário"}
+              </button>
+            </form>
           </div>
+        ) : (
+          <>
+            {/* Sem container - campos direto no fundo */}
+            <div className="mb-6">
+              <h1 style={headingStyle}>{form?.title || 'Formulário'}</h1>
+              {form?.description && (
+                <p style={descriptionStyle} className="mt-2">
+                  {form.description}
+                </p>
+              )}
+            </div>
 
-          {/* Formulário */}
-          <form onSubmit={handleSubmit}>
-            {renderFields()}
-            
-            {/* Mensagem de erro */}
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded mt-6">
-                {error}
-              </div>
-            )}
+            <form onSubmit={handleSubmit}>
+              {renderFields()}
+              
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded mt-6">
+                  {error}
+                </div>
+              )}
 
-            {/* Botão de envio */}
-            <button
-              type="submit"
-              style={buttonStyle}
-              disabled={submitting}
-              className="mt-6 transition-opacity hover:opacity-90"
-            >
-              {submitting ? "Enviando..." : "Enviar Formulário"}
-            </button>
-          </form>
-        </div>
+              <button
+                type="submit"
+                style={buttonStyle}
+                disabled={submitting}
+                className="mt-6 transition-opacity hover:opacity-90"
+              >
+                {submitting ? "Enviando..." : "Enviar Formulário"}
+              </button>
+            </form>
+          </>
+        )}
       </div>
     </div>
   )
