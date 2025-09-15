@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Palette, Type, Layout, Image, Settings2, Sparkles } from 'lucide-react'
+import { Palette, Type, Layout, Image, Settings2, Sparkles, Square } from 'lucide-react'
 
 interface FormStyleEditorProps {
   style: any
@@ -28,7 +28,10 @@ export function FormStyleEditor({ style, onChange, onApplyTheme }: FormStyleEdit
         fontFamily: 'system-ui',
         headingColor: '#111827',
         buttonBackgroundColor: '#3b82f6',
-        buttonTextColor: '#ffffff'
+        buttonTextColor: '#ffffff',
+        showContainer: true,
+        containerBackgroundColor: '#ffffff',
+        containerOpacity: '1'
       }
     },
     { 
@@ -43,7 +46,10 @@ export function FormStyleEditor({ style, onChange, onApplyTheme }: FormStyleEdit
         buttonBackgroundColor: '#ec4899',
         buttonTextColor: '#ffffff',
         containerBorderRadius: '1rem',
-        containerShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
+        containerShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+        showContainer: true,
+        containerBackgroundColor: '#ffffff',
+        containerOpacity: '0.95'
       }
     },
     { 
@@ -58,7 +64,10 @@ export function FormStyleEditor({ style, onChange, onApplyTheme }: FormStyleEdit
         buttonBackgroundColor: '#111827',
         buttonTextColor: '#ffffff',
         containerBorderRadius: '0',
-        fieldBorderRadius: '0'
+        fieldBorderRadius: '0',
+        showContainer: true,
+        containerBackgroundColor: '#ffffff',
+        containerOpacity: '1'
       }
     },
     { 
@@ -75,7 +84,8 @@ export function FormStyleEditor({ style, onChange, onApplyTheme }: FormStyleEdit
         buttonTextColor: '#ffffff',
         fieldBackgroundColor: '#1f2937',
         fieldTextColor: '#f9fafb',
-        fieldBorderColor: '#374151'
+        fieldBorderColor: '#374151',
+        showContainer: false
       }
     },
     { 
@@ -90,7 +100,10 @@ export function FormStyleEditor({ style, onChange, onApplyTheme }: FormStyleEdit
         buttonBackgroundColor: '#10b981',
         buttonTextColor: '#ffffff',
         containerBorderRadius: '2rem',
-        fieldBorderRadius: '9999px'
+        fieldBorderRadius: '9999px',
+        showContainer: true,
+        containerBackgroundColor: '#ffffff',
+        containerOpacity: '0.9'
       }
     }
   ]
@@ -120,7 +133,7 @@ export function FormStyleEditor({ style, onChange, onApplyTheme }: FormStyleEdit
   return (
     <div className="space-y-4">
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="theme" className="text-xs">
             <Sparkles className="h-3 w-3 mr-1" />
             Temas
@@ -132,6 +145,10 @@ export function FormStyleEditor({ style, onChange, onApplyTheme }: FormStyleEdit
           <TabsTrigger value="typography" className="text-xs">
             <Type className="h-3 w-3 mr-1" />
             Texto
+          </TabsTrigger>
+          <TabsTrigger value="container" className="text-xs">
+            <Square className="h-3 w-3 mr-1" />
+            Container
           </TabsTrigger>
           <TabsTrigger value="layout" className="text-xs">
             <Layout className="h-3 w-3 mr-1" />
@@ -349,6 +366,74 @@ export function FormStyleEditor({ style, onChange, onApplyTheme }: FormStyleEdit
               </select>
             </div>
           </div>
+        </TabsContent>
+
+        {/* Nova Tab de Container */}
+        <TabsContent value="container" className="space-y-4">
+          <div>
+            <Label>Mostrar Container do Formulário</Label>
+            <select
+              className="w-full px-3 py-2 border rounded-md"
+              value={style.showContainer !== false ? 'true' : 'false'}
+              onChange={(e) => updateStyle('showContainer', e.target.value === 'true')}
+            >
+              <option value="true">Sim (com fundo branco)</option>
+              <option value="false">Não (campos direto no fundo)</option>
+            </select>
+          </div>
+
+          {style.showContainer !== false && (
+            <>
+              <div>
+                <Label>Cor de Fundo do Container</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="color"
+                    value={style.containerBackgroundColor || '#ffffff'}
+                    onChange={(e) => updateStyle('containerBackgroundColor', e.target.value)}
+                    className="w-16 h-9 p-1"
+                  />
+                  <Input
+                    type="text"
+                    value={style.containerBackgroundColor || '#ffffff'}
+                    onChange={(e) => updateStyle('containerBackgroundColor', e.target.value)}
+                    className="flex-1"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label>Opacidade do Container</Label>
+                <select
+                  className="w-full px-3 py-2 border rounded-md"
+                  value={style.containerOpacity || '0.95'}
+                  onChange={(e) => updateStyle('containerOpacity', e.target.value)}
+                >
+                  <option value="1">100% (Sólido)</option>
+                  <option value="0.95">95% (Levemente transparente)</option>
+                  <option value="0.9">90%</option>
+                  <option value="0.8">80%</option>
+                  <option value="0.7">70%</option>
+                  <option value="0.6">60%</option>
+                </select>
+              </div>
+
+              <div>
+                <Label>Margem do Container</Label>
+                <select
+                  className="w-full px-3 py-2 border rounded-md"
+                  value={style.containerMargin || '2rem'}
+                  onChange={(e) => updateStyle('containerMargin', e.target.value)}
+                >
+                  <option value="0">Sem Margem</option>
+                  <option value="1rem">Pequena</option>
+                  <option value="2rem">Média</option>
+                  <option value="3rem">Grande</option>
+                  <option value="4rem">Extra Grande</option>
+                </select>
+              </div>
+            </>
+          )}
         </TabsContent>
 
         <TabsContent value="layout" className="space-y-4">
