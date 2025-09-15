@@ -388,26 +388,42 @@ export default function FormBuilderPage() {
     }
   }
 
-  // Renderizar preview do formulário com suporte aos layouts
+  // Renderizar preview do formulário com suporte aos layouts e container
   const renderPreview = () => {
-    const containerStyle: any = {
+    // Verificar se deve mostrar container
+    const showContainer = form.style?.showContainer !== false
+    
+    // Estilos do fundo principal
+    const backgroundStyle: any = {
       backgroundColor: form.style?.backgroundColor || '#ffffff',
       backgroundImage: form.style?.backgroundGradient ? form.style.backgroundGradient : form.style?.backgroundImage || 'none',
-      fontFamily: form.style?.fontFamily || 'system-ui',
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      minHeight: '400px',
+      padding: showContainer ? (form.style?.containerMargin || '2rem') : '2rem',
+    }
+
+    // Estilos do container (quando habilitado)
+    const containerStyle: any = showContainer ? {
+      backgroundColor: form.style?.containerBackgroundColor || '#ffffff',
+      opacity: form.style?.containerOpacity || 0.95,
       padding: form.style?.containerPadding || '1.5rem',
       borderRadius: form.style?.containerBorderRadius || '0.5rem',
-      boxShadow: form.style?.containerShadow || 'none',
-    }
+      boxShadow: form.style?.containerShadow || '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+    } : {}
 
     const headingStyle: any = {
       color: form.style?.headingColor || '#111827',
       fontSize: form.style?.headingSize || '2rem',
       textAlign: form.style?.headingAlign || 'left',
+      fontWeight: 'bold',
+      marginBottom: '0.5rem',
     }
 
     const descriptionStyle: any = {
       color: form.style?.descriptionColor || '#6b7280',
       fontSize: form.style?.descriptionSize || '1rem',
+      marginBottom: '1.5rem',
     }
 
     const buttonStyle: any = {
@@ -416,6 +432,9 @@ export default function FormBuilderPage() {
       borderRadius: form.style?.buttonBorderRadius || '0.375rem',
       padding: form.style?.buttonPadding || '0.5rem 1rem',
       fontSize: form.style?.buttonFontSize || '1rem',
+      border: 'none',
+      width: '100%',
+      cursor: 'pointer',
     }
 
     const fieldStyle: any = {
@@ -429,7 +448,7 @@ export default function FormBuilderPage() {
       padding: form.style?.fieldPadding || '0.5rem 1rem',
     }
 
-    // Renderizar campos com base no layout
+    // Renderizar campos sem sobreposição
     const renderFields = () => {
       if (form.fields.length === 0) {
         return (
@@ -439,32 +458,7 @@ export default function FormBuilderPage() {
         )
       }
 
-      // Para layout personalizado, usar posições absolutas
-      if (form.layout === 'custom') {
-        return (
-          <div className="relative min-h-[300px]">
-            {form.fields.map((field: FormField) => {
-              const position = field.position || { row: 0, col: 0, width: 12 }
-              return (
-                <div
-                  key={field.id}
-                  className="absolute"
-                  style={{
-                    top: `${position.row * 80}px`,
-                    left: `${(position.col / 12) * 100}%`,
-                    width: `${(position.width / 12) * 100}%`,
-                    paddingRight: '8px'
-                  }}
-                >
-                  {renderFieldPreview(field, fieldStyle)}
-                </div>
-              )
-            })}
-          </div>
-        )
-      }
-
-      // Para layouts de grade (single/two-column)
+      // Para layouts de grade (single/two-column) - SEM posicionamento absoluto
       const gridClass = form.layout === 'two-column' ? 'grid grid-cols-2 gap-4' : 'space-y-4'
       
       return (
@@ -480,6 +474,15 @@ export default function FormBuilderPage() {
 
     // Função auxiliar para renderizar preview de campo individual
     const renderFieldPreview = (field: FormField, fieldStyle: any) => {
+      const labelStyle = {
+        color: form.style?.headingColor || '#111827',
+        marginBottom: '0.25rem',
+        display: 'block',
+        fontSize: '0.875rem',
+        fontWeight: '500',
+      }
+
+      // Determinar classe de layout das opções
       const optionsClass = field.optionsLayout === 'horizontal' 
         ? 'flex flex-wrap gap-4' 
         : field.optionsLayout === 'grid'
@@ -488,7 +491,7 @@ export default function FormBuilderPage() {
 
       return (
         <div>
-          <label className="block mb-1" style={{ color: form.style?.headingColor }}>
+          <label style={labelStyle}>
             {field.label} {field.required && <span className="text-red-500">*</span>}
           </label>
           {field.type === 'textarea' ? (
@@ -510,7 +513,7 @@ export default function FormBuilderPage() {
               {field.options?.map((opt: string) => (
                 <label key={opt} className="flex items-center space-x-2">
                   <input type={field.type} disabled />
-                  <span>{opt}</span>
+                  <span style={{ color: form.style?.fieldTextColor || '#111827' }}>{opt}</span>
                 </label>
               ))}
             </div>
@@ -531,22 +534,25 @@ export default function FormBuilderPage() {
       )
     }
 
+    // Renderização com ou sem container
     return (
-      <div style={containerStyle} className={`${getPreviewWidth()} mx-auto transition-all`}>
-        <h1 style={headingStyle} className="font-bold mb-2">
-          {form.title || 'Título do Formulário'}
-        </h1>
-        {form.description && (
-          <p style={descriptionStyle} className="mb-6">
-            {form.description}
-          </p>
-        )}
-        
-        {renderFields()}
-        
-        <button style={buttonStyle} className="w-full font-medium mt-6">
-          Enviar Formulário
-        </button>
+      <div style={backgroundStyle} className={`${getPreviewWidth()} mx-auto transition-all`}>
+        <div style={showContainer ? containerStyle : {}}>
+          <h1 style={headingStyle}>
+            {form.title || 'Título do Formulário'}
+          </h1>
+          {form.description && (
+            <p style={descriptionStyle}>
+              {form.description}
+            </p>
+          )}
+          
+          {renderFields()}
+          
+          <button style={buttonStyle} className="font-medium mt-6">
+            Enviar Formulário
+          </button>
+        </div>
       </div>
     )
   }
