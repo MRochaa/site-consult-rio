@@ -49,36 +49,61 @@ export function FormLayoutEditor({
 }: FormLayoutEditorProps) {
   const [selectedField, setSelectedField] = useState<string | null>(null)
   const [draggedField, setDraggedField] = useState<string | null>(null)
-  const [gridPreview, setGridPreview] = useState<boolean>(false)
+  const [gridPreview, setGridPreview] = useState<boolean>(true)
   const gridRef = useRef<HTMLDivElement>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
 
-  // Aplicar layout automático quando mudar de tipo
+  // Garantir que todos os campos tenham posição quando o layout é 'custom'
   useEffect(() => {
-    if (layout === 'single') {
-      // Layout de coluna única - todos os campos ocupam largura total
-      const updatedFields = fields.map((field, index) => ({
-        ...field,
-        position: {
-          row: index,
-          col: 0,
-          width: 12
-        }
-      }))
-      onReorderFields(updatedFields)
-    } else if (layout === 'two-column') {
-      // Layout de duas colunas - campos alternados
-      const updatedFields = fields.map((field, index) => ({
-        ...field,
-        position: {
-          row: Math.floor(index / 2),
-          col: (index % 2) * 6,
-          width: 6
-        }
-      }))
-      onReorderFields(updatedFields)
+    if (layout === 'custom') {
+      const fieldsNeedingPosition = fields.filter(f => !f.position)
+      if (fieldsNeedingPosition.length > 0) {
+        fieldsNeedingPosition.forEach((field, index) => {
+          const existingPositions = fields.filter(f => f.position).map(f => f.position!)
+          let newRow = 0
+          
+          // Encontrar a próxima linha disponível
+          if (existingPositions.length > 0) {
+            newRow = Math.max(...existingPositions.map(p => p.row)) + 1
+          }
+          
+          onUpdateField(field.id, {
+            position: { row: newRow + index, col: 0, width: 12 }
+          })
+        })
+      }
     }
-    // Para 'custom', mantém as posições atuais
-  }, [layout])
+  }, [layout, fields])
+
+  // Aplicar layout automático quando mudar de tipo (exceto custom)
+  const applyAutomaticLayout = (newLayout: 'single' | 'two-column' | 'custom') => {
+    if (newLayout === 'single') {
+      // Layout de coluna única - todos os campos ocupam largura total
+      fields.forEach((field, index) => {
+        onUpdateField(field.id, {
+          position: {
+            row: index,
+            col: 0,
+            width: 12
+          }
+        })
+      })
+    } else if (newLayout === 'two-column') {
+      // Layout de duas colunas - campos alternados
+      fields.forEach((field, index) => {
+        onUpdateField(field.id, {
+          position: {
+            row: Math.floor(index / 2),
+            col: (index % 2) * 6,
+            width: 6
+          }
+        })
+      })
+    }
+    // Para 'custom', mantém as posições atuais ou cria padrão se não existirem
+    onUpdateLayout(newLayout)
+  }
 
   // Função para atualizar posição de um campo
   const updateFieldPosition = (fieldId: string, position: FieldPosition) => {
@@ -103,7 +128,7 @@ export function FormLayoutEditor({
         if (newPosition.col > 0) newPosition.col--
         break
       case 'right':
-        if (newPosition.col + newPosition.width < 12) newPosition.col++
+        if (newPosition.col + newPosition.width <= 12) newPosition.col++
         break
     }
 
@@ -122,13 +147,63 @@ export function FormLayoutEditor({
     updateFieldPosition(fieldId, { ...field.position, width })
   }
 
-  // Função para drag and drop
+  // Funções melhoradas para drag and drop no grid customizado
+  const handleMouseDown = (e: React.MouseEvent, fieldId: string) => {
+    if (layout !== 'custom') return
+    
+    e.preventDefault()
+    setDraggedField(fieldId)
+    setIsDragging(true)
+    setSelectedField(fieldId)
+    
+    const rect = e.currentTarget.getBoundingClientRect()
+    setDragOffset({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    })
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !draggedField || !gridRef.current) return
+    
+    const gridRect = gridRef.current.getBoundingClientRect()
+    const relativeX = e.clientX - gridRect.left - dragOffset.x
+    const relativeY = e.clientY - gridRect.top - dragOffset.y
+    
+    // Calcular nova posição baseada na grade (12 colunas)
+    const gridWidth = gridRect.width
+    const cellWidth = gridWidth / 12
+    const cellHeight = 60 // altura de cada linha em pixels
+    
+    const newCol = Math.max(0, Math.min(11, Math.floor(relativeX / cellWidth)))
+    const newRow = Math.max(0, Math.floor(relativeY / cellHeight))
+    
+    const field = fields.find(f => f.id === draggedField)
+    if (field?.position) {
+      // Ajustar largura se necessário
+      const maxWidth = 12 - newCol
+      const width = Math.min(field.position.width, maxWidth)
+      
+      updateFieldPosition(draggedField, {
+        row: newRow,
+        col: newCol,
+        width: width
+      })
+    }
+  }
+
+  const handleMouseUp = () => {
+    setIsDragging(false)
+    setDraggedField(null)
+  }
+
+  // Função para drag and drop na lista simples
   const handleDragStart = (e: React.DragEvent, fieldId: string) => {
     setDraggedField(fieldId)
     e.dataTransfer.effectAllowed = 'move'
   }
 
-  const handleDragOver = (e: React.DragEvent, targetFieldId: string) => {
+  const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
   }
@@ -148,7 +223,7 @@ export function FormLayoutEditor({
     const [removed] = newFields.splice(draggedIndex, 1)
     newFields.splice(targetIndex, 0, removed)
     
-    // Recalcular posições baseado no layout
+    // Recalcular posições baseado no layout atual
     if (layout === 'single') {
       newFields.forEach((field, index) => {
         field.position = { row: index, col: 0, width: 12 }
@@ -162,6 +237,7 @@ export function FormLayoutEditor({
         }
       })
     }
+    // Para custom, manter as posições mas atualizar a ordem no array
     
     onReorderFields(newFields)
     setDraggedField(null)
@@ -235,7 +311,7 @@ export function FormLayoutEditor({
       {/* Seletor de tipo de layout */}
       <div className="flex gap-2 p-3 bg-gray-50 rounded-lg">
         <button
-          onClick={() => onUpdateLayout('single')}
+          onClick={() => applyAutomaticLayout('single')}
           className={`flex-1 py-2 px-3 rounded flex items-center justify-center gap-2 transition-colors ${
             layout === 'single' 
               ? 'bg-blue-500 text-white' 
@@ -246,7 +322,7 @@ export function FormLayoutEditor({
           <span className="text-sm font-medium">Uma Coluna</span>
         </button>
         <button
-          onClick={() => onUpdateLayout('two-column')}
+          onClick={() => applyAutomaticLayout('two-column')}
           className={`flex-1 py-2 px-3 rounded flex items-center justify-center gap-2 transition-colors ${
             layout === 'two-column' 
               ? 'bg-blue-500 text-white' 
@@ -257,7 +333,7 @@ export function FormLayoutEditor({
           <span className="text-sm font-medium">Duas Colunas</span>
         </button>
         <button
-          onClick={() => onUpdateLayout('custom')}
+          onClick={() => applyAutomaticLayout('custom')}
           className={`flex-1 py-2 px-3 rounded flex items-center justify-center gap-2 transition-colors ${
             layout === 'custom' 
               ? 'bg-blue-500 text-white' 
@@ -292,42 +368,47 @@ export function FormLayoutEditor({
             }`}
             style={{
               backgroundImage: gridPreview 
-                ? 'repeating-linear-gradient(0deg, transparent, transparent 39px, #e5e7eb 39px, #e5e7eb 40px), repeating-linear-gradient(90deg, transparent, transparent 8.25%, #e5e7eb 8.25%, #e5e7eb 8.33%)'
-                : 'none'
+                ? 'repeating-linear-gradient(0deg, transparent, transparent 59px, #e5e7eb 59px, #e5e7eb 60px), repeating-linear-gradient(90deg, transparent, transparent calc(100% / 12 - 1px), #e5e7eb calc(100% / 12 - 1px), #e5e7eb calc(100% / 12))'
+                : 'none',
+              userSelect: 'none'
             }}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
           >
             {fields.map((field) => {
               const position = field.position || { row: 0, col: 0, width: 12 }
+              const isSelected = selectedField === field.id
+              const isDraggingThis = draggedField === field.id && isDragging
+              
               return (
                 <div
                   key={field.id}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, field.id)}
-                  onDragOver={(e) => handleDragOver(e, field.id)}
-                  onDrop={(e) => handleDrop(e, field.id)}
+                  onMouseDown={(e) => handleMouseDown(e, field.id)}
                   onClick={() => setSelectedField(field.id)}
-                  className={`absolute transition-all cursor-move border-2 rounded-lg p-3 bg-white ${
-                    selectedField === field.id 
-                      ? 'border-blue-500 shadow-lg z-10' 
-                      : 'border-gray-300 hover:border-gray-400'
-                  }`}
+                  className={`absolute transition-all border-2 rounded-lg p-3 bg-white ${
+                    isSelected 
+                      ? 'border-blue-500 shadow-lg z-20' 
+                      : 'border-gray-300 hover:border-gray-400 z-10'
+                  } ${isDraggingThis ? 'cursor-grabbing opacity-70' : 'cursor-grab'}`}
                   style={{
                     top: `${position.row * 60}px`,
-                    left: `${(position.col / 12) * 100}%`,
-                    width: `${(position.width / 12) * 100}%`,
-                    minHeight: '50px'
+                    left: `calc(${(position.col / 12) * 100}%)`,
+                    width: `calc(${(position.width / 12) * 100}% - 8px)`,
+                    minHeight: '50px',
+                    transition: isDraggingThis ? 'none' : 'all 0.2s ease'
                   }}
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between pointer-events-none">
                     <div className="flex items-center gap-2">
                       <Move className="h-3 w-3 text-gray-400" />
-                      <span className="text-sm font-medium">{field.label}</span>
+                      <span className="text-sm font-medium truncate">{field.label}</span>
                     </div>
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-gray-500 flex-shrink-0">
                       {position.width}/12
                     </span>
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-xs text-gray-500 mt-1 pointer-events-none">
                     {field.type} {field.required && '• Obrigatório'}
                   </div>
                 </div>
@@ -354,13 +435,14 @@ export function FormLayoutEditor({
               <div className="grid grid-cols-2 gap-3">
                 {/* Controles de posição */}
                 <div className="space-y-2">
-                  <Label className="text-xs">Posição</Label>
+                  <Label className="text-xs">Posição (Linha, Coluna)</Label>
                   <div className="grid grid-cols-3 gap-1">
                     <div />
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() => moveField(selectedField, 'up')}
+                      className="h-8"
                     >
                       <ArrowUp className="h-3 w-3" />
                     </Button>
@@ -369,10 +451,11 @@ export function FormLayoutEditor({
                       size="sm"
                       variant="outline"
                       onClick={() => moveField(selectedField, 'left')}
+                      className="h-8"
                     >
                       <ArrowLeft className="h-3 w-3" />
                     </Button>
-                    <div className="text-xs text-center py-2">
+                    <div className="text-xs text-center py-2 font-mono">
                       {fields.find(f => f.id === selectedField)?.position?.row || 0},
                       {fields.find(f => f.id === selectedField)?.position?.col || 0}
                     </div>
@@ -380,6 +463,7 @@ export function FormLayoutEditor({
                       size="sm"
                       variant="outline"
                       onClick={() => moveField(selectedField, 'right')}
+                      className="h-8"
                     >
                       <ArrowRight className="h-3 w-3" />
                     </Button>
@@ -388,6 +472,7 @@ export function FormLayoutEditor({
                       size="sm"
                       variant="outline"
                       onClick={() => moveField(selectedField, 'down')}
+                      className="h-8"
                     >
                       <ArrowDown className="h-3 w-3" />
                     </Button>
@@ -417,10 +502,14 @@ export function FormLayoutEditor({
                         }
                       }}
                       title="Expandir até o final"
+                      className="h-8"
                     >
                       <Maximize2 className="h-3 w-3" />
                     </Button>
                   </div>
+                  <p className="text-xs text-gray-500">
+                    Dica: Arraste o campo para reposicionar
+                  </p>
                 </div>
               </div>
 
@@ -434,14 +523,14 @@ export function FormLayoutEditor({
       {/* Lista simples para layouts não personalizados */}
       {layout !== 'custom' && (
         <div className="space-y-2">
-          <Label className="text-sm font-semibold">Ordem dos Campos</Label>
+          <Label className="text-sm font-semibold">Ordem dos Campos (arraste para reordenar)</Label>
           <div className="space-y-2">
             {fields.map((field, index) => (
               <div
                 key={field.id}
                 draggable
                 onDragStart={(e) => handleDragStart(e, field.id)}
-                onDragOver={(e) => handleDragOver(e, field.id)}
+                onDragOver={handleDragOver}
                 onDrop={(e) => handleDrop(e, field.id)}
                 className="flex items-center justify-between p-3 border rounded-lg bg-white hover:bg-gray-50 cursor-move"
               >
