@@ -353,29 +353,35 @@ export default function PublicFormPage() {
     
     // Para layout customizado com posições
     if (layout === 'custom') {
-      // Calcular altura máxima do container baseado nas posições
+      // Filtrar apenas campos visíveis
       const visibleFields = form.fields.filter((f: FormField) => shouldShowField(f))
       
       if (visibleFields.length === 0) {
         return null
       }
       
+      // Calcular altura máxima do container baseado nas posições
       const maxRow = Math.max(...visibleFields.map((f: FormField) => f.position?.row || 0))
-      const containerHeight = (maxRow + 1) * 100 // 100px por linha para formulário público
+      const containerMinHeight = (maxRow + 1) * 120 // 120px por linha para formulário público com espaçamento
       
       return (
-        <div className="relative" style={{ minHeight: `${containerHeight}px` }}>
+        <div className="relative w-full" style={{ minHeight: `${containerMinHeight}px` }}>
           {visibleFields.map((field: FormField) => {
             const position = field.position || { row: 0, col: 0, width: 12 }
+            
+            // Calcular largura em porcentagem com margem
+            const widthPercent = (position.width / 12) * 100
+            const leftPercent = (position.col / 12) * 100
             
             return (
               <div
                 key={field.id}
                 className="absolute"
                 style={{
-                  top: `${position.row * 100}px`,
-                  left: `${(position.col / 12) * 100}%`,
-                  width: `calc(${(position.width / 12) * 100}% - ${position.width < 12 ? '10px' : '0'})`,
+                  top: `${position.row * 120}px`,
+                  left: `${leftPercent}%`,
+                  width: `calc(${widthPercent}% - ${position.width < 12 ? '16px' : '0px'})`,
+                  paddingRight: position.width < 12 ? '0' : '0',
                 }}
               >
                 {renderField(field)}
