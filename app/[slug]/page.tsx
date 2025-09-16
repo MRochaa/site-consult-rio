@@ -391,4 +391,228 @@ export default function PublicFormPage() {
             if (rowFields.length === 0) return null
             
             // Ordenar campos pela coluna
-            rowFields.sort((a, b)
+            rowFields.sort((a, b) => (a.position?.col || 0) - (b.position?.col || 0))
+            
+            return (
+              <div 
+                key={`row-${rowIndex}`}
+                className="grid grid-cols-12 gap-4"
+                style={{ minHeight: 'auto' }}
+              >
+                {rowFields.map((field) => {
+                  const position = field.position || { row: 0, col: 0, width: 12 }
+                  const colStart = position.col + 1 // Grid CSS é 1-indexed
+                  const colSpan = position.width
+                  
+                  return (
+                    <div
+                      key={field.id}
+                      className="flex items-start"
+                      style={{
+                        gridColumn: `${colStart} / span ${colSpan}`,
+                        minHeight: 'auto' // Permite expansão natural do conteúdo
+                      }}
+                    >
+                      {renderField(field)}
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })}
+        </div>
+      )
+    }
+    
+    // Layout de duas colunas
+    if (layout === 'two-column') {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {form.fields.map((field: FormField) => {
+            if (!shouldShowField(field)) return null
+            return (
+              <div key={field.id} className="min-h-fit">
+                {renderField(field)}
+              </div>
+            )
+          })}
+        </div>
+      )
+    }
+    
+    // Layout padrão (uma coluna)
+    return (
+      <div className="space-y-6">
+        {form.fields.map((field: FormField) => {
+          if (!shouldShowField(field)) return null
+          return renderField(field)
+        })}
+      </div>
+    )
+  }
+
+  // Estados de carregamento e erro
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#1b2370] to-[#0f1a5c] flex items-center justify-center">
+        <div className="text-white">Carregando formulário...</div>
+      </div>
+    )
+  }
+
+  if (error && !form) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#1b2370] to-[#0f1a5c] flex items-center justify-center">
+        <Card className="max-w-md">
+          <CardContent className="pt-6">
+            <p className="text-red-500">{error}</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (submitted) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#1b2370] to-[#0f1a5c] flex items-center justify-center p-4">
+        <Card className="max-w-md">
+          <CardContent className="pt-6">
+            <div className="text-center space-y-4">
+              <CheckCircle className="h-16 w-16 text-green-500 mx-auto" />
+              <h2 className="text-2xl font-bold">Formulário Enviado!</h2>
+              <p className="text-gray-600">Obrigado por preencher o formulário.</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Verificar se deve mostrar container
+  const showContainer = formStyle.showContainer !== false
+
+  // Aplicar estilos de fundo
+  const containerStyle: React.CSSProperties = {
+    backgroundColor: formStyle.backgroundColor || '#ffffff',
+    backgroundImage: formStyle.backgroundGradient 
+      ? formStyle.backgroundGradient 
+      : formStyle.backgroundImage 
+        ? formStyle.backgroundImage 
+        : 'none',
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    fontFamily: formStyle.fontFamily || 'system-ui',
+    minHeight: '100vh',
+    padding: showContainer ? (formStyle.containerMargin || '2rem 1rem') : '2rem 1rem',
+  }
+
+  // Estilo do card - apenas quando showContainer é true
+  const cardStyle: React.CSSProperties = showContainer ? {
+    backgroundColor: formStyle.containerBackgroundColor || 'rgba(255, 255, 255, 0.95)',
+    padding: formStyle.containerPadding || '1.5rem',
+    borderRadius: formStyle.containerBorderRadius || '0.5rem',
+    boxShadow: formStyle.containerShadow || '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+    opacity: formStyle.containerOpacity || 0.95,
+  } : {
+    padding: formStyle.containerPadding || '1.5rem',
+  }
+
+  const headingStyle: React.CSSProperties = {
+    color: formStyle.headingColor || '#111827',
+    fontSize: formStyle.headingSize || '2rem',
+    textAlign: formStyle.headingAlign as any || 'left',
+    fontWeight: 'bold',
+  }
+
+  const descriptionStyle: React.CSSProperties = {
+    color: formStyle.descriptionColor || '#6b7280',
+    fontSize: formStyle.descriptionSize || '1rem',
+  }
+
+  const buttonStyle: React.CSSProperties = {
+    backgroundColor: formStyle.buttonBackgroundColor || '#3b82f6',
+    color: formStyle.buttonTextColor || '#ffffff',
+    borderRadius: formStyle.buttonBorderRadius || '0.375rem',
+    padding: formStyle.buttonPadding || '0.75rem 1.5rem',
+    fontSize: formStyle.buttonFontSize || '1rem',
+    fontWeight: '500',
+    width: '100%',
+    border: 'none',
+    cursor: submitting ? 'not-allowed' : 'pointer',
+    opacity: submitting ? 0.5 : 1,
+  }
+
+  // Renderização principal com estilos aplicados
+  return (
+    <div style={containerStyle}>
+      <div className="max-w-3xl mx-auto">
+        {showContainer ? (
+          <div style={cardStyle}>
+            {/* Header do formulário */}
+            <div className="mb-6">
+              <h1 style={headingStyle}>{form?.title || 'Formulário'}</h1>
+              {form?.description && (
+                <p style={descriptionStyle} className="mt-2">
+                  {form.description}
+                </p>
+              )}
+            </div>
+
+            {/* Formulário com campos dinâmicos */}
+            <form onSubmit={handleSubmit} className="w-full">
+              {renderFields()}
+              
+              {/* Mensagem de erro */}
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded mt-6">
+                  {error}
+                </div>
+              )}
+
+              {/* Botão de envio */}
+              <button
+                type="submit"
+                style={buttonStyle}
+                disabled={submitting}
+                className="mt-6 transition-opacity hover:opacity-90"
+              >
+                {submitting ? "Enviando..." : "Enviar Formulário"}
+              </button>
+            </form>
+          </div>
+        ) : (
+          <>
+            {/* Sem container - campos direto no fundo */}
+            <div className="mb-6">
+              <h1 style={headingStyle}>{form?.title || 'Formulário'}</h1>
+              {form?.description && (
+                <p style={descriptionStyle} className="mt-2">
+                  {form.description}
+                </p>
+              )}
+            </div>
+
+            <form onSubmit={handleSubmit} className="w-full">
+              {renderFields()}
+              
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded mt-6">
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                style={buttonStyle}
+                disabled={submitting}
+                className="mt-6 transition-opacity hover:opacity-90"
+              >
+                {submitting ? "Enviando..." : "Enviar Formulário"}
+              </button>
+            </form>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
