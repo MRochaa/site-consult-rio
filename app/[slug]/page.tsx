@@ -339,7 +339,7 @@ export default function PublicFormPage() {
     }
   }
 
-  // Renderizar campos com layouts responsivos e sem sobreposição
+  // Renderizar campos com layouts responsivos e customizados
   const renderFields = () => {
     if (!form?.fields || form.fields.length === 0) {
       return (
@@ -351,6 +351,42 @@ export default function PublicFormPage() {
 
     const layout = formStyle?.layout || 'single'
     
+    // Para layout customizado com posições
+    if (layout === 'custom') {
+      // Calcular altura máxima do container baseado nas posições
+      const visibleFields = form.fields.filter((f: FormField) => shouldShowField(f))
+      
+      if (visibleFields.length === 0) {
+        return null
+      }
+      
+      const maxRow = Math.max(...visibleFields.map((f: FormField) => f.position?.row || 0))
+      const containerHeight = (maxRow + 1) * 100 // 100px por linha para formulário público
+      
+      return (
+        <div className="relative" style={{ minHeight: `${containerHeight}px` }}>
+          {visibleFields.map((field: FormField) => {
+            const position = field.position || { row: 0, col: 0, width: 12 }
+            
+            return (
+              <div
+                key={field.id}
+                className="absolute"
+                style={{
+                  top: `${position.row * 100}px`,
+                  left: `${(position.col / 12) * 100}%`,
+                  width: `calc(${(position.width / 12) * 100}% - ${position.width < 12 ? '10px' : '0'})`,
+                }}
+              >
+                {renderField(field)}
+              </div>
+            )
+          })}
+        </div>
+      )
+    }
+    
+    // Layout de duas colunas
     if (layout === 'two-column') {
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -366,7 +402,7 @@ export default function PublicFormPage() {
       )
     }
     
-    // Layout padrão (uma coluna) ou custom sem posicionamento absoluto
+    // Layout padrão (uma coluna)
     return (
       <div className="space-y-6">
         {form.fields.map((field: FormField) => {
