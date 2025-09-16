@@ -76,6 +76,71 @@ export function FormLayoutEditor({
     }
   }, [layout, fields])
 
+  // Função para verificar se há sobreposição entre dois campos
+  const checkOverlap = (pos1: FieldPosition, pos2: FieldPosition): boolean => {
+    // Verifica se estão na mesma linha
+    if (pos1.row !== pos2.row) return false
+    
+    // Verifica sobreposição horizontal
+    const pos1End = pos1.col + pos1.width
+    const pos2End = pos2.col + pos2.width
+    
+    return !(pos1End <= pos2.col || pos2End <= pos1.col)
+  }
+
+  // Função para encontrar uma posição válida sem sobreposição
+  const findValidPosition = (fieldId: string, desiredRow: number, desiredCol: number, width: number): FieldPosition => {
+    const otherFields = fields.filter(f => f.id !== fieldId && f.position)
+    
+    // Tentar a posição desejada primeiro
+    let testPosition: FieldPosition = {
+      row: Math.max(0, desiredRow),
+      col: Math.max(0, Math.min(12 - width, desiredCol)),
+      width: width
+    }
+    
+    // Verificar sobreposições na linha desejada
+    const overlappingFields = otherFields.filter(f => 
+      f.position && checkOverlap(testPosition, f.position)
+    )
+    
+    // Se há sobreposição, tentar mover para a direita ou para baixo
+    if (overlappingFields.length > 0) {
+      // Tentar mover para a próxima posição disponível na mesma linha
+      let newCol = 0
+      let foundSpace = false
+      
+      // Ordenar campos da linha por coluna
+      const rowFields = otherFields
+        .filter(f => f.position?.row === desiredRow)
+        .sort((a, b) => (a.position?.col || 0) - (b.position?.col || 0))
+      
+      // Procurar espaço entre campos
+      for (const field of rowFields) {
+        if (field.position && newCol + width <= field.position.col) {
+          foundSpace = true
+          break
+        }
+        if (field.position) {
+          newCol = field.position.col + field.position.width
+        }
+      }
+      
+      // Verificar se há espaço no final da linha
+      if (!foundSpace && newCol + width <= 12) {
+        testPosition.col = newCol
+      } else if (!foundSpace) {
+        // Se não há espaço na linha, mover para a próxima linha
+        testPosition.row = desiredRow + 1
+        testPosition.col = 0
+      } else {
+        testPosition.col = newCol
+      }
+    }
+    
+    return testPosition
+  }
+
   // Aplicar layout automático quando mudar de tipo (exceto custom)
   const applyAutomaticLayout = (newLayout: 'single' | 'two-column' | 'custom') => {
     if (newLayout === 'single') {
@@ -107,7 +172,9 @@ export function FormLayoutEditor({
 
   // Função para atualizar posição de um campo
   const updateFieldPosition = (fieldId: string, position: FieldPosition) => {
-    onUpdateField(fieldId, { position })
+    // Validar e ajustar a posição para evitar sobreposição
+    const validPosition = findValidPosition(fieldId, position.row, position.col, position.width)
+    onUpdateField(fieldId, { position: validPosition })
   }
 
   // Função para mover campo no grid
@@ -115,24 +182,25 @@ export function FormLayoutEditor({
     const field = fields.find(f => f.id === fieldId)
     if (!field || !field.position) return
 
-    const newPosition = { ...field.position }
+    let desiredRow = field.position.row
+    let desiredCol = field.position.col
     
     switch (direction) {
       case 'up':
-        if (newPosition.row > 0) newPosition.row--
+        if (desiredRow > 0) desiredRow--
         break
       case 'down':
-        newPosition.row++
+        desiredRow++
         break
       case 'left':
-        if (newPosition.col > 0) newPosition.col--
+        if (desiredCol > 0) desiredCol--
         break
       case 'right':
-        if (newPosition.col + newPosition.width <= 12) newPosition.col++
+        if (desiredCol + field.position.width < 12) desiredCol++
         break
     }
 
-    updateFieldPosition(fieldId, newPosition)
+    updateFieldPosition(fieldId, { ...field.position, row: desiredRow, col: desiredCol })
   }
 
   // Função para redimensionar campo
@@ -180,14 +248,10 @@ export function FormLayoutEditor({
     
     const field = fields.find(f => f.id === draggedField)
     if (field?.position) {
-      // Ajustar largura se necessário
-      const maxWidth = 12 - newCol
-      const width = Math.min(field.position.width, maxWidth)
-      
       updateFieldPosition(draggedField, {
         row: newRow,
         col: newCol,
-        width: width
+        width: field.position.width
       })
     }
   }
@@ -360,6 +424,15 @@ export function FormLayoutEditor({
             </Button>
           </div>
 
+          {/* Informação sobre o sistema de grid */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+            <p className="text-blue-800">
+              💡 <strong>Dica:</strong> Arraste os campos para reposicioná-los. 
+              O sistema evita sobreposição automaticamente. 
+              Use os controles abaixo para ajustar largura e posição precisas.
+            </p>
+          </div>
+
           {/* Grid visual para layout personalizado */}
           <div 
             ref={gridRef}
@@ -410,6 +483,7 @@ export function FormLayoutEditor({
                   </div>
                   <div className="text-xs text-gray-500 mt-1 pointer-events-none">
                     {field.type} {field.required && '• Obrigatório'}
+                    {field.position && ` • Linha: ${field.position.row}, Col: ${field.position.col}`}
                   </div>
                 </div>
               )
