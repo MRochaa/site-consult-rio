@@ -9,24 +9,31 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FormStyleEditor } from "@/components/form-style-editor"
 import { FormLayoutEditor } from "@/components/form-layout-editor"
+import { SignaturePad } from "@/components/signature-pad"
 import { AuthClient } from "@/lib/auth-client"
 import { 
   ArrowLeft, Save, Eye, Monitor, Tablet, Smartphone, 
   Plus, Trash2, ArrowUp, ArrowDown, Settings, Palette,
-  FileText, X, Edit2, Check, Layout
+  FileText, X, Edit2, Check, Layout, GitBranch
 } from "lucide-react"
 
 interface FieldOption {
   id: string
   value: string
-  isEditing?: boolean // Para controlar edição inline
+  isEditing?: boolean
 }
 
 interface FieldPosition {
   row: number
   col: number
-  width: number // 1-12 (sistema de grid de 12 colunas)
-  height?: number // altura em linhas do grid
+  width: number
+  height?: number
+}
+
+interface FieldCondition {
+  field: string // ID do campo que controla a visibilidade
+  operator: 'equals' | 'not_equals' | 'contains'
+  value: string // Valor que deve ser comparado
 }
 
 interface FormField {
@@ -41,6 +48,7 @@ interface FormField {
   position?: FieldPosition
   optionsLayout?: 'vertical' | 'horizontal' | 'grid'
   optionsColumns?: number
+  condition?: FieldCondition // Campo condicional
 }
 
 export default function FormBuilderPage() {
@@ -55,13 +63,13 @@ export default function FormBuilderPage() {
     slug: '',
     fields: [],
     style: {},
-    layout: 'single' // Adicionar controle de layout
+    layout: 'single'
   })
   
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [previewDevice, setPreviewDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop')
-  const [activeTab, setActiveTab] = useState('fields') // Tab ativa: 'fields', 'layout' ou 'style'
+  const [activeTab, setActiveTab] = useState('fields')
   
   // Estados para adicionar campos
   const [currentField, setCurrentField] = useState({
@@ -74,10 +82,18 @@ export default function FormBuilderPage() {
     multipleChoice: false,
     optionsLayout: 'vertical' as 'vertical' | 'horizontal' | 'grid',
     optionsColumns: 2,
+    // Campos condicionais
+    hasCondition: false,
+    conditionField: "",
+    conditionOperator: "equals" as "equals" | "not_equals" | "contains",
+    conditionValue: ""
   })
   const [newOption, setNewOption] = useState("")
-  const [editingFieldId, setEditingFieldId] = useState<string | null>(null) // Para editar campo existente
+  const [editingFieldId, setEditingFieldId] = useState<string | null>(null)
   
+  // Estado para simular valores no preview (para testar condicionais)
+  const [previewData, setPreviewData] = useState<Record<string, any>>({})
+
   useEffect(() => {
     if (formId !== 'new') {
       fetchForm()
@@ -129,7 +145,7 @@ export default function FormBuilderPage() {
           description: form.description,
           slug: form.slug,
           fields: form.fields,
-          style: { ...form.style, layout: form.layout } // Incluir layout no style
+          style: { ...form.style, layout: form.layout }
         })
       })
       
@@ -247,7 +263,15 @@ export default function FormBuilderPage() {
       optionsLayout: ['select', 'radio', 'checkbox'].includes(currentField.type) 
         ? currentField.optionsLayout 
         : undefined,
-      optionsColumns: currentField.optionsLayout === 'grid' ? currentField.optionsColumns : undefined
+      optionsColumns: currentField.optionsLayout === 'grid' ? currentField.optionsColumns : undefined,
+      // Adicionar condição se configurada
+      condition: currentField.hasCondition && currentField.conditionField
+        ? {
+            field: currentField.conditionField,
+            operator: currentField.conditionOperator,
+            value: currentField.conditionValue
+          }
+        : undefined
     }
 
     if (editingFieldId) {
@@ -261,7 +285,6 @@ export default function FormBuilderPage() {
       setEditingFieldId(null)
     } else {
       // Adicionar novo campo
-      // Calcular posição baseada no layout
       let position: FieldPosition
       const fieldCount = form.fields.length
       
@@ -274,7 +297,6 @@ export default function FormBuilderPage() {
           width: 6
         }
       } else {
-        // Layout personalizado - adicionar no final
         position = { row: fieldCount, col: 0, width: 12 }
       }
       
@@ -294,11 +316,16 @@ export default function FormBuilderPage() {
       options: [],
       multipleChoice: false,
       optionsLayout: 'vertical',
-      optionsColumns: 2
+      optionsColumns: 2,
+      hasCondition: false,
+      conditionField: "",
+      conditionOperator: "equals",
+      conditionValue: ""
     })
     setNewOption("")
   }
-// Função para iniciar edição de um campo existente
+
+  // Função para iniciar edição de um campo existente
   const startEditField = (field: FormField) => {
     setEditingFieldId(field.id)
     setCurrentField({
@@ -314,9 +341,14 @@ export default function FormBuilderPage() {
       })) || [],
       multipleChoice: field.multipleChoice || false,
       optionsLayout: field.optionsLayout || 'vertical',
-      optionsColumns: field.optionsColumns || 2
+      optionsColumns: field.optionsColumns || 2,
+      // Campos condicionais
+      hasCondition: !!field.condition,
+      conditionField: field.condition?.field || "",
+      conditionOperator: field.condition?.operator || "equals",
+      conditionValue: field.condition?.value || ""
     })
-    setActiveTab('fields') // Mudar para aba de campos
+    setActiveTab('fields')
   }
 
   // Cancelar edição
@@ -331,7 +363,11 @@ export default function FormBuilderPage() {
       options: [],
       multipleChoice: false,
       optionsLayout: 'vertical',
-      optionsColumns: 2
+      optionsColumns: 2,
+      hasCondition: false,
+      conditionField: "",
+      conditionOperator: "equals",
+      conditionValue: ""
     })
     setNewOption("")
   }
@@ -379,6 +415,24 @@ export default function FormBuilderPage() {
     setForm({ ...form, fields: newFields })
   }
 
+  // Verificar se um campo deve ser exibido baseado em condições
+  const shouldShowField = (field: FormField): boolean => {
+    if (!field.condition) return true
+    
+    const conditionValue = previewData[field.condition.field]
+    
+    switch (field.condition.operator) {
+      case 'equals':
+        return conditionValue === field.condition.value
+      case 'not_equals':
+        return conditionValue !== field.condition.value
+      case 'contains':
+        return conditionValue?.includes(field.condition.value)
+      default:
+        return true
+    }
+  }
+
   // Obter largura do preview
   const getPreviewWidth = () => {
     switch (previewDevice) {
@@ -388,12 +442,30 @@ export default function FormBuilderPage() {
     }
   }
 
-  // Renderizar preview do formulário com suporte aos layouts e container
+  // Obter lista de campos que podem ser usados em condições
+  const getConditionableFields = () => {
+    return form.fields.filter((f: FormField) => 
+      ['select', 'radio', 'checkbox', 'text'].includes(f.type) && 
+      f.id !== editingFieldId
+    )
+  }
+
+  // Obter opções do campo selecionado para condição
+  const getConditionFieldOptions = (fieldId: string) => {
+    const field = form.fields.find((f: FormField) => f.id === fieldId)
+    if (!field) return []
+    
+    if (field.type === 'select' || field.type === 'radio' || field.type === 'checkbox') {
+      return field.options || []
+    }
+    
+    return []
+  }
+
+  // Renderizar preview do formulário usando CSS Grid (igual ao formulário público)
   const renderPreview = () => {
-    // Verificar se deve mostrar container
     const showContainer = form.style?.showContainer !== false
     
-    // Estilos do fundo principal
     const backgroundStyle: any = {
       backgroundColor: form.style?.backgroundColor || '#ffffff',
       backgroundImage: form.style?.backgroundGradient ? form.style.backgroundGradient : form.style?.backgroundImage || 'none',
@@ -403,7 +475,6 @@ export default function FormBuilderPage() {
       padding: showContainer ? (form.style?.containerMargin || '2rem') : '2rem',
     }
 
-    // Estilos do container (quando habilitado)
     const containerStyle: any = showContainer ? {
       backgroundColor: form.style?.containerBackgroundColor || '#ffffff',
       opacity: form.style?.containerOpacity || 0.95,
@@ -448,7 +519,7 @@ export default function FormBuilderPage() {
       padding: form.style?.fieldPadding || '0.5rem 1rem',
     }
 
-    // Renderizar campos com layout customizado
+    // Renderizar campos com CSS Grid (igual ao formulário público)
     const renderFields = () => {
       if (form.fields.length === 0) {
         return (
@@ -458,29 +529,62 @@ export default function FormBuilderPage() {
         )
       }
 
-      // Para layout custom com posições definidas
+      // Para layout custom com CSS Grid
       if (form.layout === 'custom') {
-        // Calcular altura máxima do container baseado nas posições
-        const maxRow = Math.max(...form.fields.map((f: FormField) => f.position?.row || 0))
-        const containerHeight = (maxRow + 1) * 80 // 80px por linha
+        // Filtrar campos visíveis baseado em condições
+        const visibleFields = form.fields.filter((f: FormField) => shouldShowField(f))
+        
+        if (visibleFields.length === 0) {
+          return (
+            <p className="text-gray-400 text-center py-8">
+              Todos os campos estão ocultos por condições
+            </p>
+          )
+        }
+        
+        // Organizar campos por linha
+        const fieldsByRow: { [key: number]: FormField[] } = {}
+        let maxRow = 0
+        
+        visibleFields.forEach((field: FormField) => {
+          const row = field.position?.row || 0
+          if (!fieldsByRow[row]) {
+            fieldsByRow[row] = []
+          }
+          fieldsByRow[row].push(field)
+          maxRow = Math.max(maxRow, row)
+        })
         
         return (
-          <div className="relative" style={{ minHeight: `${containerHeight}px` }}>
-            {form.fields.map((field: FormField) => {
-              const position = field.position || { row: 0, col: 0, width: 12 }
+          <div className="w-full space-y-4">
+            {Array.from({ length: maxRow + 1 }, (_, rowIndex) => {
+              const rowFields = fieldsByRow[rowIndex] || []
+              if (rowFields.length === 0) return null
+              
+              rowFields.sort((a, b) => (a.position?.col || 0) - (b.position?.col || 0))
               
               return (
-                <div
-                  key={field.id}
-                  className="absolute"
-                  style={{
-                    top: `${position.row * 80}px`,
-                    left: `${(position.col / 12) * 100}%`,
-                    width: `${(position.width / 12) * 100}%`,
-                    paddingRight: position.width < 12 ? '10px' : '0',
-                  }}
+                <div 
+                  key={`row-${rowIndex}`}
+                  className="grid grid-cols-12 gap-4"
                 >
-                  {renderFieldPreview(field, fieldStyle)}
+                  {rowFields.map((field) => {
+                    const position = field.position || { row: 0, col: 0, width: 12 }
+                    const colStart = position.col + 1
+                    const colSpan = position.width
+                    
+                    return (
+                      <div
+                        key={field.id}
+                        className="flex items-start"
+                        style={{
+                          gridColumn: `${colStart} / span ${colSpan}`,
+                        }}
+                      >
+                        {renderFieldPreview(field, fieldStyle)}
+                      </div>
+                    )
+                  })}
                 </div>
               )
             })}
@@ -488,21 +592,24 @@ export default function FormBuilderPage() {
         )
       }
       
-      // Para layouts de grade simples (single/two-column)
-      const gridClass = form.layout === 'two-column' ? 'grid grid-cols-2 gap-4' : 'space-y-4'
+      // Layout de grade simples
+      const gridClass = form.layout === 'two-column' ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : 'space-y-4'
       
       return (
         <div className={gridClass}>
-          {form.fields.map((field: FormField) => (
-            <div key={field.id}>
-              {renderFieldPreview(field, fieldStyle)}
-            </div>
-          ))}
+          {form.fields.map((field: FormField) => {
+            if (!shouldShowField(field)) return null
+            return (
+              <div key={field.id} className="min-h-fit">
+                {renderFieldPreview(field, fieldStyle)}
+              </div>
+            )
+          })}
         </div>
       )
     }
 
-    // Função auxiliar para renderizar preview de campo individual
+    // Função para renderizar preview de campo individual
     const renderFieldPreview = (field: FormField, fieldStyle: any) => {
       const labelStyle = {
         color: form.style?.headingColor || '#111827',
@@ -512,17 +619,24 @@ export default function FormBuilderPage() {
         fontWeight: '500',
       }
 
-      // Determinar classe de layout das opções
       const optionsClass = field.optionsLayout === 'horizontal' 
         ? 'flex flex-wrap gap-4' 
         : field.optionsLayout === 'grid'
         ? `grid grid-cols-${field.optionsColumns || 2} gap-2`
         : 'space-y-2'
 
+      // Mostrar indicador de campo condicional
+      const conditionalIndicator = field.condition ? (
+        <span className="ml-2 text-xs text-blue-500 italic">
+          (Condicional)
+        </span>
+      ) : null
+
       return (
-        <div>
+        <div className="w-full">
           <label style={labelStyle}>
             {field.label} {field.required && <span className="text-red-500">*</span>}
+            {conditionalIndicator}
           </label>
           {field.type === 'textarea' ? (
             <textarea
@@ -532,24 +646,57 @@ export default function FormBuilderPage() {
               disabled
             />
           ) : field.type === 'select' ? (
-            <select style={fieldStyle} className="w-full" disabled>
+            <select 
+              style={fieldStyle} 
+              className="w-full" 
+              disabled
+              onChange={(e) => setPreviewData({...previewData, [field.id]: e.target.value})}
+              value={previewData[field.id] || ''}
+            >
               <option>Selecione...</option>
               {field.options?.map((opt: string) => (
-                <option key={opt}>{opt}</option>
+                <option key={opt} value={opt}>{opt}</option>
               ))}
             </select>
-          ) : field.type === 'radio' || field.type === 'checkbox' ? (
+          ) : field.type === 'radio' ? (
             <div className={optionsClass}>
               {field.options?.map((opt: string) => (
                 <label key={opt} className="flex items-center space-x-2">
-                  <input type={field.type} disabled />
+                  <input 
+                    type="radio" 
+                    name={`preview-${field.id}`}
+                    value={opt}
+                    checked={previewData[field.id] === opt}
+                    onChange={(e) => setPreviewData({...previewData, [field.id]: e.target.value})}
+                  />
+                  <span style={{ color: form.style?.fieldTextColor || '#111827' }}>{opt}</span>
+                </label>
+              ))}
+            </div>
+          ) : field.type === 'checkbox' ? (
+            <div className={optionsClass}>
+              {field.options?.map((opt: string) => (
+                <label key={opt} className="flex items-center space-x-2">
+                  <input type="checkbox" disabled />
                   <span style={{ color: form.style?.fieldTextColor || '#111827' }}>{opt}</span>
                 </label>
               ))}
             </div>
           ) : field.type === 'signature' ? (
-            <div style={fieldStyle} className="w-full h-32 flex items-center justify-center text-gray-400">
-              Área de Assinatura
+            <div className="w-full">
+              <div 
+                style={{
+                  ...fieldStyle,
+                  aspectRatio: '2 / 1',
+                  minHeight: '150px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }} 
+                className="text-gray-400"
+              >
+                Área de Assinatura
+              </div>
             </div>
           ) : (
             <input
@@ -557,14 +704,14 @@ export default function FormBuilderPage() {
               placeholder={field.placeholder}
               style={fieldStyle}
               className="w-full"
-              disabled
+              value={previewData[field.id] || ''}
+              onChange={(e) => setPreviewData({...previewData, [field.id]: e.target.value})}
             />
           )}
         </div>
       )
     }
 
-    // Renderização com ou sem container
     return (
       <div style={backgroundStyle} className={`${getPreviewWidth()} mx-auto transition-all`}>
         <div style={showContainer ? containerStyle : {}}>
@@ -575,6 +722,18 @@ export default function FormBuilderPage() {
             <p style={descriptionStyle}>
               {form.description}
             </p>
+          )}
+          
+          {/* Controles de teste para condicionais */}
+          {form.fields.some((f: FormField) => f.condition) && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm">
+              <p className="font-semibold text-blue-800 mb-2">
+                🧪 Teste de Campos Condicionais
+              </p>
+              <p className="text-blue-600 text-xs">
+                Interaja com os campos abaixo para testar a visibilidade condicional
+              </p>
+            </div>
           )}
           
           {renderFields()}
@@ -897,6 +1056,108 @@ export default function FormBuilderPage() {
                         </div>
                       )}
 
+                      {/* Campo condicional */}
+                      <div className="space-y-3 border-t pt-3">
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={currentField.hasCondition}
+                            onChange={(e) => setCurrentField({...currentField, hasCondition: e.target.checked})}
+                          />
+                          <Label className="cursor-pointer flex items-center">
+                            <GitBranch className="h-4 w-4 mr-2" />
+                            Campo Condicional (mostrar/ocultar baseado em outro campo)
+                          </Label>
+                        </div>
+
+                        {currentField.hasCondition && (
+                          <div className="space-y-3 pl-6 border-l-2 border-blue-200">
+                            <div>
+                              <Label>Mostrar este campo quando:</Label>
+                            </div>
+                            
+                            <div className="grid gap-3 md:grid-cols-3">
+                              <div>
+                                <Label className="text-xs">Campo</Label>
+                                <select
+                                  className="w-full px-2 py-1 border rounded text-sm"
+                                  value={currentField.conditionField}
+                                  onChange={(e) => setCurrentField({
+                                    ...currentField, 
+                                    conditionField: e.target.value,
+                                    conditionValue: '' // Resetar valor ao mudar campo
+                                  })}
+                                >
+                                  <option value="">Selecione...</option>
+                                  {getConditionableFields().map((f: FormField) => (
+                                    <option key={f.id} value={f.id}>
+                                      {f.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div>
+                                <Label className="text-xs">Condição</Label>
+                                <select
+                                  className="w-full px-2 py-1 border rounded text-sm"
+                                  value={currentField.conditionOperator}
+                                  onChange={(e) => setCurrentField({
+                                    ...currentField, 
+                                    conditionOperator: e.target.value as any
+                                  })}
+                                >
+                                  <option value="equals">For igual a</option>
+                                  <option value="not_equals">For diferente de</option>
+                                  <option value="contains">Contiver</option>
+                                </select>
+                              </div>
+
+                              <div>
+                                <Label className="text-xs">Valor</Label>
+                                {getConditionFieldOptions(currentField.conditionField).length > 0 ? (
+                                  <select
+                                    className="w-full px-2 py-1 border rounded text-sm"
+                                    value={currentField.conditionValue}
+                                    onChange={(e) => setCurrentField({
+                                      ...currentField, 
+                                      conditionValue: e.target.value
+                                    })}
+                                  >
+                                    <option value="">Selecione...</option>
+                                    {getConditionFieldOptions(currentField.conditionField).map((opt: string) => (
+                                      <option key={opt} value={opt}>
+                                        {opt}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <Input
+                                    className="h-8 text-sm"
+                                    value={currentField.conditionValue}
+                                    onChange={(e) => setCurrentField({
+                                      ...currentField, 
+                                      conditionValue: e.target.value
+                                    })}
+                                    placeholder="Digite o valor"
+                                  />
+                                )}
+                              </div>
+                            </div>
+
+                            {currentField.conditionField && currentField.conditionValue && (
+                              <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                                ✓ Este campo será exibido quando "{getConditionableFields().find((f: FormField) => f.id === currentField.conditionField)?.label}" 
+                                {currentField.conditionOperator === 'equals' && ' for igual a '}
+                                {currentField.conditionOperator === 'not_equals' && ' for diferente de '}
+                                {currentField.conditionOperator === 'contains' && ' contiver '}
+                                "{currentField.conditionValue}"
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
                       <div className="flex items-center space-x-4">
                         <label className="flex items-center space-x-2">
                           <input
@@ -952,12 +1213,18 @@ export default function FormBuilderPage() {
                               <div className="flex items-center space-x-3">
                                 <span className="text-gray-500 font-mono text-sm">{index + 1}</span>
                                 <div>
-                                  <p className="font-medium">{field.label}</p>
+                                  <p className="font-medium flex items-center">
+                                    {field.label}
+                                    {field.condition && (
+                                      <GitBranch className="h-3 w-3 ml-2 text-blue-500" title="Campo condicional" />
+                                    )}
+                                  </p>
                                   <p className="text-sm text-gray-500">
                                     {field.type}
                                     {field.required && " • Obrigatório"}
                                     {field.options && ` • ${field.options.length} opções`}
                                     {field.optionsLayout && field.optionsLayout !== 'vertical' && ` • ${field.optionsLayout}`}
+                                    {field.condition && " • Condicional"}
                                   </p>
                                 </div>
                               </div>
