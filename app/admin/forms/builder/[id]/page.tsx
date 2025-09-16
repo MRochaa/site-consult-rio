@@ -448,7 +448,7 @@ export default function FormBuilderPage() {
       padding: form.style?.fieldPadding || '0.5rem 1rem',
     }
 
-    // Renderizar campos sem sobreposição
+    // Renderizar campos com layout customizado
     const renderFields = () => {
       if (form.fields.length === 0) {
         return (
@@ -458,7 +458,37 @@ export default function FormBuilderPage() {
         )
       }
 
-      // Para layouts de grade (single/two-column) - SEM posicionamento absoluto
+      // Para layout custom com posições definidas
+      if (form.layout === 'custom') {
+        // Calcular altura máxima do container baseado nas posições
+        const maxRow = Math.max(...form.fields.map((f: FormField) => f.position?.row || 0))
+        const containerHeight = (maxRow + 1) * 80 // 80px por linha
+        
+        return (
+          <div className="relative" style={{ minHeight: `${containerHeight}px` }}>
+            {form.fields.map((field: FormField) => {
+              const position = field.position || { row: 0, col: 0, width: 12 }
+              
+              return (
+                <div
+                  key={field.id}
+                  className="absolute"
+                  style={{
+                    top: `${position.row * 80}px`,
+                    left: `${(position.col / 12) * 100}%`,
+                    width: `${(position.width / 12) * 100}%`,
+                    paddingRight: position.width < 12 ? '10px' : '0',
+                  }}
+                >
+                  {renderFieldPreview(field, fieldStyle)}
+                </div>
+              )
+            })}
+          </div>
+        )
+      }
+      
+      // Para layouts de grade simples (single/two-column)
       const gridClass = form.layout === 'two-column' ? 'grid grid-cols-2 gap-4' : 'space-y-4'
       
       return (
