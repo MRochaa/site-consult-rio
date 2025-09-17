@@ -527,48 +527,47 @@ export default function FormBuilderPage() {
   }
 
   // Obter opções do campo selecionado para condição
-  const getConditionFieldOptions = (fieldId: string) => {
-    const field = form.fields.find((f: FormField) => f.id === fieldId)
-    if (!field) return []
-    
-    if (field.type === 'select' || field.type === 'radio' || field.type === 'checkbox') {
+const getConditionFieldOptions = (fieldId: string) => {
+  const field = form.fields.find((f: FormField) => f.id === fieldId)
+  if (!field) return []
+
+  switch (field.type) {
+    case 'select':
+    case 'radio':
+    case 'checkbox':
       return field.options || []
-    }
-    
-    // Campos informativos
-      if (field.type === 'info') {
-        return (
-          <div className="w-full">
-            <InfoFieldPreview
-              content={field.content}
-              textAlign={field.textAlign}
-              fontSize={field.fontSize}
-              fontWeight={field.fontWeight}
-              textColor={field.textColor}
-              isBuilder={true}
-            />
-          </div>
-        )
-      }
 
-      if (field.type === 'image') {
-        return (
-          <div className="w-full">
-            <InfoFieldPreview
-              imageUrl={field.imageUrl}
-              imageAlt={field.imageAlt}
-              imageHeight={field.imageHeight}
-              textAlign={field.textAlign}
-              isBuilder={true}
-            />
-          </div>
-        )
-      }
+    case 'info':
+      return (
+        <div className="w-full">
+          <InfoFieldPreview
+            content={field.content}
+            textAlign={field.textAlign}
+            fontSize={field.fontSize}
+            fontWeight={field.fontWeight}
+            textColor={field.textColor}
+            isBuilder={true}
+          />
+        </div>
+      )
 
-      default:
-        return null
-    }
+    case 'image':
+      return (
+        <div className="w-full">
+          <InfoFieldPreview
+            imageUrl={field.imageUrl}
+            imageAlt={field.imageAlt}
+            imageHeight={field.imageHeight}
+            textAlign={field.textAlign}
+            isBuilder={true}
+          />
+        </div>
+      )
+
+    default:
+      return null
   }
+}
 
   // Renderizar preview do formulário usando CSS Grid (igual ao formulário público)
   const renderPreview = () => {
