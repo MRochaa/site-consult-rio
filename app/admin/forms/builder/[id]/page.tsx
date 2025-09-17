@@ -404,7 +404,16 @@ export default function FormBuilderPage() {
       hasCondition: !!field.condition,
       conditionField: field.condition?.field || "",
       conditionOperator: field.condition?.operator || "equals",
-      conditionValue: field.condition?.value || ""
+      conditionValue: field.condition?.value || "",
+      // Campos informativos
+      content: field.content || "",
+      imageUrl: field.imageUrl || "",
+      imageAlt: field.imageAlt || "",
+      imageHeight: field.imageHeight || "auto",
+      textAlign: field.textAlign || "left",
+      fontSize: field.fontSize || "1rem",
+      fontWeight: field.fontWeight || "normal",
+      textColor: field.textColor || "#000000"
     })
     setActiveTab('fields')
   }
@@ -425,7 +434,16 @@ export default function FormBuilderPage() {
       hasCondition: false,
       conditionField: "",
       conditionOperator: "equals",
-      conditionValue: ""
+      conditionValue: "",
+      // Campos informativos
+      content: "",
+      imageUrl: "",
+      imageAlt: "",
+      imageHeight: "auto",
+      textAlign: "left",
+      fontSize: "1rem",
+      fontWeight: "normal",
+      textColor: "#000000"
     })
     setNewOption("")
   }
