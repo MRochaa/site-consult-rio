@@ -517,7 +517,39 @@ export default function FormBuilderPage() {
       return field.options || []
     }
     
-    return []
+    // Campos informativos
+      if (field.type === 'info') {
+        return (
+          <div className="w-full">
+            <InfoFieldPreview
+              content={field.content}
+              textAlign={field.textAlign}
+              fontSize={field.fontSize}
+              fontWeight={field.fontWeight}
+              textColor={field.textColor}
+              isBuilder={true}
+            />
+          </div>
+        )
+      }
+
+      if (field.type === 'image') {
+        return (
+          <div className="w-full">
+            <InfoFieldPreview
+              imageUrl={field.imageUrl}
+              imageAlt={field.imageAlt}
+              imageHeight={field.imageHeight}
+              textAlign={field.textAlign}
+              isBuilder={true}
+            />
+          </div>
+        )
+      }
+
+      default:
+        return null
+    }
   }
 
   // Renderizar preview do formulário usando CSS Grid (igual ao formulário público)
