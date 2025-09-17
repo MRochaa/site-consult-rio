@@ -307,7 +307,7 @@ export default function FormBuilderPage() {
       : undefined
   }
 
-    const field: FormField = {
+    const newfield: FormField = {
       id: editingFieldId || Date.now().toString(),
       type: currentField.type,
       label: currentField.label,
@@ -333,14 +333,21 @@ export default function FormBuilderPage() {
     }
 
     if (editingFieldId) {
-      // Atualizar campo existente
-      setForm({
-        ...form,
-        fields: form.fields.map((f: FormField) => 
-          f.id === editingFieldId ? { ...f, ...field } : f
-        )
-      })
-      setEditingFieldId(null)
+  // Atualizar campo existente
+  setForm({
+    ...form,
+    fields: form.fields.map((f: FormField) =>
+      f.id === editingFieldId ? { ...f, ...newField } : f
+    )
+  })
+} else {
+  // Adicionar campo novo
+  setForm({
+    ...form,
+    fields: [...form.fields, newField]
+  })
+}
+
     } else {
       // Adicionar novo campo
       let position: FieldPosition
