@@ -73,21 +73,30 @@ export default function FormBuilderPage() {
   
   // Estados para adicionar campos
   const [currentField, setCurrentField] = useState({
-    type: "text",
-    label: "",
-    name: "",
-    required: false,
-    placeholder: "",
-    options: [] as FieldOption[],
-    multipleChoice: false,
-    optionsLayout: 'vertical' as 'vertical' | 'horizontal' | 'grid',
-    optionsColumns: 2,
-    // Campos condicionais
-    hasCondition: false,
-    conditionField: "",
-    conditionOperator: "equals" as "equals" | "not_equals" | "contains",
-    conditionValue: ""
-  })
+  type: "text",
+  label: "",
+  name: "",
+  required: false,
+  placeholder: "",
+  options: [] as FieldOption[],
+  multipleChoice: false,
+  optionsLayout: 'vertical' as 'vertical' | 'horizontal' | 'grid',
+  optionsColumns: 2,
+  // Campos condicionais
+  hasCondition: false,
+  conditionField: "",
+  conditionOperator: "equals" as "equals" | "not_equals" | "contains",
+  conditionValue: "",
+  // Novos campos para elementos informativos
+  content: "", // Conteúdo do texto informativo
+  imageUrl: "", // URL da imagem
+  imageAlt: "", // Texto alternativo da imagem
+  imageHeight: "auto", // Altura da imagem
+  textAlign: "left" as 'left' | 'center' | 'right' | 'justify',
+  fontSize: "1rem",
+  fontWeight: "normal",
+  textColor: "#000000"
+})
   const [newOption, setNewOption] = useState("")
   const [editingFieldId, setEditingFieldId] = useState<string | null>(null)
   
