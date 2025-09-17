@@ -364,6 +364,31 @@ export default function PublicFormPage() {
               </div>
             )}
           </div>
+      )
+
+      case 'info':
+        return (
+          <div key={field.id} className="w-full">
+            <InfoFieldPreview
+              content={field.content}
+              textAlign={field.textAlign}
+              fontSize={field.fontSize}
+              fontWeight={field.fontWeight}
+              textColor={field.textColor}
+            />
+          </div>
+        )
+
+      case 'image':
+        return (
+          <div key={field.id} className="w-full">
+            <InfoFieldPreview
+              imageUrl={field.imageUrl}
+              imageAlt={field.imageAlt}
+              imageHeight={field.imageHeight}
+              textAlign={field.textAlign}
+            />
+          </div>
         )
 
       default:
