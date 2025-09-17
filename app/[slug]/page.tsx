@@ -101,12 +101,15 @@ export default function PublicFormPage() {
       const dataToSend: Record<string, any> = {}
       
       form.fields.forEach((field: FormField) => {
-        // Só incluir campos visíveis no envio
-        if (shouldShowField(field) && formData[field.id] !== undefined) {
-          // Usar field.name como chave no envio final
-          dataToSend[field.name || field.id] = formData[field.id]
-        }
-      })
+  // Só incluir campos visíveis e que NÃO sejam informativos no envio
+  if (shouldShowField(field) && 
+      field.type !== 'info' && 
+      field.type !== 'image' && 
+      formData[field.id] !== undefined) {
+    // Usar field.name como chave no envio final
+    dataToSend[field.name || field.id] = formData[field.id]
+  }
+})
 
       const response = await fetch(`/api/forms/public/${slug}/submit`, {
         method: 'POST',
