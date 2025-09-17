@@ -253,10 +253,59 @@ export default function FormBuilderPage() {
 
   // Adicionar ou atualizar campo
   const addOrUpdateField = () => {
-    if (!currentField.label) {
-      alert('O campo precisa ter um label')
-      return
-    }
+  // Para campos informativos, não precisa de label obrigatório
+  if (currentField.type !== 'info' && currentField.type !== 'image' && !currentField.label) {
+    alert('O campo precisa ter um label')
+    return
+  }
+
+  // Para campo de imagem, verifica se tem URL
+  if (currentField.type === 'image' && !currentField.imageUrl) {
+    alert('O campo de imagem precisa ter uma URL')
+    return
+  }
+
+  // Para campo de texto informativo, verifica se tem conteúdo
+  if (currentField.type === 'info' && !currentField.content) {
+    alert('O campo de texto informativo precisa ter conteúdo')
+    return
+  }
+
+  const field: FormField = {
+    id: editingFieldId || Date.now().toString(),
+    type: currentField.type,
+    label: currentField.type === 'info' ? 'Texto Informativo' : 
+           currentField.type === 'image' ? 'Imagem' : 
+           currentField.label,
+    name: currentField.name || currentField.label.toLowerCase().replace(/\s+/g, '_'),
+    required: currentField.type === 'info' || currentField.type === 'image' ? false : currentField.required,
+    placeholder: currentField.placeholder,
+    options: currentField.type === 'select' || currentField.type === 'radio' || currentField.type === 'checkbox'
+      ? currentField.options.map(o => o.value)
+      : undefined,
+    multipleChoice: currentField.type === 'checkbox' ? currentField.multipleChoice : undefined,
+    optionsLayout: ['select', 'radio', 'checkbox'].includes(currentField.type) 
+      ? currentField.optionsLayout 
+      : undefined,
+    optionsColumns: currentField.optionsLayout === 'grid' ? currentField.optionsColumns : undefined,
+    // Adicionar campos informativos
+    content: currentField.type === 'info' ? currentField.content : undefined,
+    imageUrl: currentField.type === 'image' ? currentField.imageUrl : undefined,
+    imageAlt: currentField.type === 'image' ? currentField.imageAlt : undefined,
+    imageHeight: currentField.type === 'image' ? currentField.imageHeight : undefined,
+    textAlign: currentField.type === 'info' ? currentField.textAlign : undefined,
+    fontSize: currentField.type === 'info' ? currentField.fontSize : undefined,
+    fontWeight: currentField.type === 'info' ? currentField.fontWeight : undefined,
+    textColor: currentField.type === 'info' ? currentField.textColor : undefined,
+    // Adicionar condição se configurada
+    condition: currentField.hasCondition && currentField.conditionField
+      ? {
+          field: currentField.conditionField,
+          operator: currentField.conditionOperator,
+          value: currentField.conditionValue
+        }
+      : undefined
+  }
 
     const field: FormField = {
       id: editingFieldId || Date.now().toString(),
@@ -872,21 +921,27 @@ export default function FormBuilderPage() {
                         <div>
                           <Label>Tipo de Campo</Label>
                           <select
-                            className="w-full px-3 py-2 border rounded-md"
-                            value={currentField.type}
-                            onChange={(e) => setCurrentField({...currentField, type: e.target.value, options: []})}
-                          >
-                            <option value="text">Texto</option>
-                            <option value="email">Email</option>
-                            <option value="tel">Telefone</option>
-                            <option value="number">Número</option>
-                            <option value="date">Data</option>
-                            <option value="textarea">Texto Longo</option>
-                            <option value="select">Lista Suspensa</option>
-                            <option value="radio">Seleção Única</option>
-                            <option value="checkbox">Múltipla Escolha</option>
-                            <option value="signature">Assinatura</option>
-                          </select>
+  className="w-full px-3 py-2 border rounded-md"
+  value={currentField.type}
+  onChange={(e) => setCurrentField({...currentField, type: e.target.value, options: []})}
+>
+  <optgroup label="Campos de Entrada">
+    <option value="text">Texto</option>
+    <option value="email">Email</option>
+    <option value="tel">Telefone</option>
+    <option value="number">Número</option>
+    <option value="date">Data</option>
+    <option value="textarea">Texto Longo</option>
+    <option value="select">Lista Suspensa</option>
+    <option value="radio">Seleção Única</option>
+    <option value="checkbox">Múltipla Escolha</option>
+    <option value="signature">Assinatura</option>
+  </optgroup>
+  <optgroup label="Campos Informativos">
+    <option value="info">📄 Texto Informativo</option>
+    <option value="image">🖼️ Imagem</option>
+  </optgroup>
+</select>
                         </div>
                         <div>
                           <Label>Label</Label>
