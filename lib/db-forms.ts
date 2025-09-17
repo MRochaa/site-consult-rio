@@ -10,12 +10,23 @@ export interface FormField {
   options?: string[];
   multipleChoice?: boolean;
   condition?: any;
-  style?: FieldStyle; // Estilos individuais do campo
+  style?: FieldStyle;
   position?: {
     row: number;
     col: number;
-    width: number; // 1-12 (grid de 12 colunas)
+    width: number;
   };
+  optionsLayout?: 'vertical' | 'horizontal' | 'grid';
+  optionsColumns?: number;
+  // Novos campos para elementos informativos
+  content?: string; // Para campo de texto informativo
+  imageUrl?: string; // Para campo de imagem
+  imageAlt?: string; // Texto alternativo da imagem
+  imageHeight?: string; // Altura da imagem (ex: '200px', 'auto')
+  textAlign?: 'left' | 'center' | 'right' | 'justify'; // Alinhamento do texto
+  fontSize?: string; // Tamanho da fonte do texto informativo
+  fontWeight?: string; // Peso da fonte
+  textColor?: string; // Cor do texto informativo
 }
 
 export interface FieldStyle {
