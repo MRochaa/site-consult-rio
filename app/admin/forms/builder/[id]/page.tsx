@@ -348,10 +348,6 @@ export default function FormBuilderPage() {
   })
 }
 
-    } else {
-      // Adicionar novo campo
-      let position: FieldPosition
-      const fieldCount = form.fields.length
       
       if (form.layout === 'single') {
         position = { row: fieldCount, col: 0, width: 12 }
