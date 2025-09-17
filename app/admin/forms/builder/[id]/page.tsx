@@ -952,7 +952,141 @@ export default function FormBuilderPage() {
                           />
                         </div>
                       </div>
+{/* Configurações para campo de texto informativo */}
+{currentField.type === 'info' && (
+  <div className="space-y-3 border rounded-lg p-3 bg-blue-50">
+    <Label className="text-blue-800">⚠️ Este é um campo apenas para exibição</Label>
+    
+    <div>
+      <Label>Conteúdo do Texto</Label>
+      <textarea
+        className="w-full px-3 py-2 border rounded-md min-h-[100px]"
+        value={currentField.content}
+        onChange={(e) => setCurrentField({...currentField, content: e.target.value})}
+        placeholder="Digite o texto que será exibido..."
+      />
+    </div>
 
+    <div className="grid grid-cols-2 gap-3">
+      <div>
+        <Label>Alinhamento</Label>
+        <select
+          className="w-full px-3 py-2 border rounded-md"
+          value={currentField.textAlign}
+          onChange={(e) => setCurrentField({...currentField, textAlign: e.target.value as any})}
+        >
+          <option value="left">Esquerda</option>
+          <option value="center">Centro</option>
+          <option value="right">Direita</option>
+          <option value="justify">Justificado</option>
+        </select>
+      </div>
+
+      <div>
+        <Label>Tamanho da Fonte</Label>
+        <select
+          className="w-full px-3 py-2 border rounded-md"
+          value={currentField.fontSize}
+          onChange={(e) => setCurrentField({...currentField, fontSize: e.target.value})}
+        >
+          <option value="0.875rem">Pequeno</option>
+          <option value="1rem">Normal</option>
+          <option value="1.125rem">Médio</option>
+          <option value="1.25rem">Grande</option>
+          <option value="1.5rem">Extra Grande</option>
+        </select>
+      </div>
+
+      <div>
+        <Label>Peso da Fonte</Label>
+        <select
+          className="w-full px-3 py-2 border rounded-md"
+          value={currentField.fontWeight}
+          onChange={(e) => setCurrentField({...currentField, fontWeight: e.target.value})}
+        >
+          <option value="normal">Normal</option>
+          <option value="500">Médio</option>
+          <option value="600">Semi-Negrito</option>
+          <option value="bold">Negrito</option>
+        </select>
+      </div>
+
+      <div>
+        <Label>Cor do Texto</Label>
+        <div className="flex gap-2">
+          <input
+            type="color"
+            value={currentField.textColor}
+            onChange={(e) => setCurrentField({...currentField, textColor: e.target.value})}
+            className="w-16 h-9 p-1 border rounded"
+          />
+          <Input
+            type="text"
+            value={currentField.textColor}
+            onChange={(e) => setCurrentField({...currentField, textColor: e.target.value})}
+            className="flex-1"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
+{/* Configurações para campo de imagem */}
+{currentField.type === 'image' && (
+  <div className="space-y-3 border rounded-lg p-3 bg-green-50">
+    <Label className="text-green-800">⚠️ Este é um campo apenas para exibição de imagem</Label>
+    
+    <div>
+      <Label>URL da Imagem</Label>
+      <Input
+        value={currentField.imageUrl}
+        onChange={(e) => setCurrentField({...currentField, imageUrl: e.target.value})}
+        placeholder="https://exemplo.com/imagem.jpg"
+      />
+    </div>
+
+    <div>
+      <Label>Texto Alternativo (Acessibilidade)</Label>
+      <Input
+        value={currentField.imageAlt}
+        onChange={(e) => setCurrentField({...currentField, imageAlt: e.target.value})}
+        placeholder="Descrição da imagem"
+      />
+    </div>
+
+    <div>
+      <Label>Altura da Imagem</Label>
+      <select
+        className="w-full px-3 py-2 border rounded-md"
+        value={currentField.imageHeight}
+        onChange={(e) => setCurrentField({...currentField, imageHeight: e.target.value})}
+      >
+        <option value="auto">Automático</option>
+        <option value="150px">Pequena (150px)</option>
+        <option value="250px">Média (250px)</option>
+        <option value="400px">Grande (400px)</option>
+        <option value="100%">Largura Total</option>
+      </select>
+    </div>
+
+    {/* Preview da imagem */}
+    {currentField.imageUrl && (
+      <div className="border rounded p-2 bg-white">
+        <Label className="text-sm mb-2 block">Preview:</Label>
+        <img 
+          src={currentField.imageUrl} 
+          alt={currentField.imageAlt || "Preview"}
+          style={{ height: currentField.imageHeight, maxWidth: '100%' }}
+          className="rounded"
+          onError={(e) => {
+            e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="150"%3E%3Crect fill="%23ddd" width="200" height="150"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%23999"%3EImagem não encontrada%3C/text%3E%3C/svg%3E'
+          }}
+        />
+      </div>
+    )}
+  </div>
+)}
                       <div className="grid gap-4 md:grid-cols-2">
                         <div>
                           <Label>Nome do Campo (sistema)</Label>
