@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { InfoFieldPreview } from "@/components/form-info-preview"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Plus, Eye, Copy, FileText, Download, ArrowLeft, Palette, Edit, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
