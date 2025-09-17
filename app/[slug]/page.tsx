@@ -26,7 +26,7 @@ interface FormField {
   options?: string[]
   multipleChoice?: boolean
   condition?: {
-    field: string
+    field: string // ID do campo que controla a visibilidade
     operator: 'equals' | 'not_equals' | 'contains'
     value: string
   }
@@ -41,6 +41,7 @@ export default function PublicFormPage() {
   
   const [form, setForm] = useState<any>(null)
   const [formStyle, setFormStyle] = useState<any>({}) 
+  // IMPORTANTE: Mudança aqui - formData agora usa field.id como chave, não field.name
   const [formData, setFormData] = useState<Record<string, any>>({})
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -68,9 +69,12 @@ export default function PublicFormPage() {
     }
   }
 
+  // Função para verificar se um campo deve ser exibido baseado em condições
   const shouldShowField = (field: FormField): boolean => {
     if (!field.condition) return true
     
+    // IMPORTANTE: Agora busca usando field.condition.field diretamente no formData
+    // pois formData usa field.id como chave
     const conditionValue = formData[field.condition.field]
     
     switch (field.condition.operator) {
@@ -91,12 +95,24 @@ export default function PublicFormPage() {
     setError("")
 
     try {
+      // Converter formData de IDs para names antes de enviar
+      // Isso mantém compatibilidade com o backend que espera field.name
+      const dataToSend: Record<string, any> = {}
+      
+      form.fields.forEach((field: FormField) => {
+        // Só incluir campos visíveis no envio
+        if (shouldShowField(field) && formData[field.id] !== undefined) {
+          // Usar field.name como chave no envio final
+          dataToSend[field.name || field.id] = formData[field.id]
+        }
+      })
+
       const response = await fetch(`/api/forms/public/${slug}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          data: formData,
-          signature: formData.signature || null
+          data: dataToSend,
+          signature: dataToSend.signature || null
         })
       })
 
@@ -153,6 +169,7 @@ export default function PublicFormPage() {
       fontWeight: formStyle.labelWeight || '500',
     }
 
+    // IMPORTANTE: Todas as interações agora usam field.id como chave no formData
     switch (field.type) {
       case 'text':
       case 'email':
@@ -169,8 +186,8 @@ export default function PublicFormPage() {
               type={field.type}
               placeholder={field.placeholder}
               required={field.required}
-              value={formData[field.name] || ''}
-              onChange={(e) => setFormData({...formData, [field.name]: e.target.value})}
+              value={formData[field.id] || ''} // Usa field.id
+              onChange={(e) => setFormData({...formData, [field.id]: e.target.value})} // Usa field.id
               style={fieldStyle}
               className="w-full"
             />
@@ -188,8 +205,8 @@ export default function PublicFormPage() {
               className="w-full min-h-[100px] resize-vertical"
               placeholder={field.placeholder}
               required={field.required}
-              value={formData[field.name] || ''}
-              onChange={(e) => setFormData({...formData, [field.name]: e.target.value})}
+              value={formData[field.id] || ''} // Usa field.id
+              onChange={(e) => setFormData({...formData, [field.id]: e.target.value})} // Usa field.id
               style={fieldStyle}
             />
           </div>
@@ -205,8 +222,8 @@ export default function PublicFormPage() {
               id={field.id}
               className="w-full"
               required={field.required}
-              value={formData[field.name] || ''}
-              onChange={(e) => setFormData({...formData, [field.name]: e.target.value})}
+              value={formData[field.id] || ''} // Usa field.id
+              onChange={(e) => setFormData({...formData, [field.id]: e.target.value})} // Usa field.id
               style={fieldStyle}
             >
               <option value="">Selecione...</option>
@@ -228,11 +245,11 @@ export default function PublicFormPage() {
                 <label key={option} className="flex items-center space-x-2 cursor-pointer">
                   <input
                     type="radio"
-                    name={field.name}
+                    name={field.id} // Usa field.id como name do grupo
                     value={option}
                     required={field.required}
-                    checked={formData[field.name] === option}
-                    onChange={(e) => setFormData({...formData, [field.name]: e.target.value})}
+                    checked={formData[field.id] === option} // Usa field.id
+                    onChange={(e) => setFormData({...formData, [field.id]: e.target.value})} // Usa field.id
                     className="cursor-pointer"
                   />
                   <span style={{ color: formStyle.fieldTextColor || '#000000' }}>{option}</span>
@@ -260,30 +277,30 @@ export default function PublicFormPage() {
                     <input
                       type="checkbox"
                       value={option}
-                      checked={Array.isArray(formData[field.name]) 
-                        ? formData[field.name].includes(option)
-                        : formData[field.name] === option}
+                      checked={Array.isArray(formData[field.id]) // Usa field.id
+                        ? formData[field.id].includes(option)
+                        : formData[field.id] === option}
                       onChange={(e) => {
                         if (field.multipleChoice) {
-                          const currentValues = Array.isArray(formData[field.name]) 
-                            ? formData[field.name] 
+                          const currentValues = Array.isArray(formData[field.id]) // Usa field.id
+                            ? formData[field.id] 
                             : []
                           
                           if (e.target.checked) {
                             setFormData({
                               ...formData, 
-                              [field.name]: [...currentValues, option]
+                              [field.id]: [...currentValues, option] // Usa field.id
                             })
                           } else {
                             setFormData({
                               ...formData, 
-                              [field.name]: currentValues.filter((v: string) => v !== option)
+                              [field.id]: currentValues.filter((v: string) => v !== option) // Usa field.id
                             })
                           }
                         } else {
                           setFormData({
                             ...formData, 
-                            [field.name]: e.target.checked ? option : ''
+                            [field.id]: e.target.checked ? option : '' // Usa field.id
                           })
                         }
                       }}
@@ -296,14 +313,15 @@ export default function PublicFormPage() {
             </div>
           )
         } else {
+          // Checkbox simples (sim/não)
           return (
             <div key={field.id} className="space-y-2 w-full">
               <label className="flex items-center space-x-2 cursor-pointer">
                 <input
                   type="checkbox"
                   required={field.required}
-                  checked={formData[field.name] || false}
-                  onChange={(e) => setFormData({...formData, [field.name]: e.target.checked})}
+                  checked={formData[field.id] || false} // Usa field.id
+                  onChange={(e) => setFormData({...formData, [field.id]: e.target.checked})} // Usa field.id
                   className="cursor-pointer"
                 />
                 <span style={labelStyle}>
@@ -320,14 +338,14 @@ export default function PublicFormPage() {
             <Label style={labelStyle}>
               {field.label} {field.required && <span className="text-red-500">*</span>}
             </Label>
-            {!formData[field.name] ? (
+            {!formData[field.id] ? ( // Usa field.id
               <div className="w-full">
-                <SignaturePad onSave={(sig) => setFormData({...formData, [field.name]: sig})} />
+                <SignaturePad onSave={(sig) => setFormData({...formData, [field.id]: sig})} /> {/* Usa field.id */}
               </div>
             ) : (
               <div className="space-y-2">
                 <img 
-                  src={formData[field.name]} 
+                  src={formData[field.id]} // Usa field.id
                   alt="Assinatura" 
                   className="border rounded p-2 bg-white max-w-full h-auto"
                   style={{ maxHeight: '200px' }}
@@ -335,7 +353,7 @@ export default function PublicFormPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setFormData({...formData, [field.name]: ""})}
+                  onClick={() => setFormData({...formData, [field.id]: ""})} // Usa field.id
                 >
                   Refazer Assinatura
                 </Button>
@@ -367,7 +385,11 @@ export default function PublicFormPage() {
       const visibleFields = form.fields.filter((f: FormField) => shouldShowField(f))
       
       if (visibleFields.length === 0) {
-        return null
+        return (
+          <p className="text-gray-400 text-center py-8">
+            Preencha os campos necessários para continuar...
+          </p>
+        )
       }
       
       // Organizar campos por linha para CSS Grid
@@ -558,6 +580,15 @@ export default function PublicFormPage() {
               )}
             </div>
 
+            {/* Indicador de campos condicionais ativos */}
+            {form?.fields?.some((f: FormField) => f.condition) && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm">
+                <p className="text-blue-800">
+                  ℹ️ Este formulário possui campos que aparecem dinamicamente baseado em suas respostas.
+                </p>
+              </div>
+            )}
+
             {/* Formulário com campos dinâmicos */}
             <form onSubmit={handleSubmit} className="w-full">
               {renderFields()}
@@ -591,6 +622,15 @@ export default function PublicFormPage() {
                 </p>
               )}
             </div>
+
+            {/* Indicador de campos condicionais ativos */}
+            {form?.fields?.some((f: FormField) => f.condition) && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm">
+                <p className="text-blue-800">
+                  ℹ️ Este formulário possui campos que aparecem dinamicamente baseado em suas respostas.
+                </p>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="w-full">
               {renderFields()}
