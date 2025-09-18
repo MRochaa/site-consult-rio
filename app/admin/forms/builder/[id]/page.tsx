@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FormStyleEditor } from "@/components/form-style-editor"
 import { FormLayoutEditor } from "@/components/form-layout-editor"
 import { SignaturePad } from "@/components/signature-pad"
+import { InfoFieldPreview } from "@/components/form-info-preview"
 import { AuthClient } from "@/lib/auth-client"
 import { 
   ArrowLeft, Save, Eye, Monitor, Tablet, Smartphone, 
@@ -17,12 +18,14 @@ import {
   FileText, X, Edit2, Check, Layout, GitBranch
 } from "lucide-react"
 
+// Interface para opções de campo
 interface FieldOption {
   id: string
   value: string
   isEditing?: boolean
 }
 
+// Interface para posição de campo no layout
 interface FieldPosition {
   row: number
   col: number
@@ -30,12 +33,14 @@ interface FieldPosition {
   height?: number
 }
 
+// Interface para condições de campo
 interface FieldCondition {
   field: string // ID do campo que controla a visibilidade
   operator: 'equals' | 'not_equals' | 'contains'
   value: string // Valor que deve ser comparado
 }
 
+// Interface principal para campos do formulário
 interface FormField {
   id: string
   type: string
@@ -48,7 +53,16 @@ interface FormField {
   position?: FieldPosition
   optionsLayout?: 'vertical' | 'horizontal' | 'grid'
   optionsColumns?: number
-  condition?: FieldCondition // Campo condicional
+  condition?: FieldCondition
+  // Campos para elementos informativos
+  content?: string
+  imageUrl?: string
+  imageAlt?: string
+  imageHeight?: string
+  textAlign?: 'left' | 'center' | 'right' | 'justify'
+  fontSize?: string
+  fontWeight?: string
+  textColor?: string
 }
 
 export default function FormBuilderPage() {
@@ -73,34 +87,34 @@ export default function FormBuilderPage() {
   
   // Estados para adicionar campos
   const [currentField, setCurrentField] = useState({
-  type: "text",
-  label: "",
-  name: "",
-  required: false,
-  placeholder: "",
-  options: [] as FieldOption[],
-  multipleChoice: false,
-  optionsLayout: 'vertical' as 'vertical' | 'horizontal' | 'grid',
-  optionsColumns: 2,
-  // Campos condicionais
-  hasCondition: false,
-  conditionField: "",
-  conditionOperator: "equals" as "equals" | "not_equals" | "contains",
-  conditionValue: "",
-  // Novos campos para elementos informativos
-  content: "", // Conteúdo do texto informativo
-  imageUrl: "", // URL da imagem
-  imageAlt: "", // Texto alternativo da imagem
-  imageHeight: "auto", // Altura da imagem
-  textAlign: "left" as 'left' | 'center' | 'right' | 'justify',
-  fontSize: "1rem",
-  fontWeight: "normal",
-  textColor: "#000000"
-})
+    type: "text",
+    label: "",
+    name: "",
+    required: false,
+    placeholder: "",
+    options: [] as FieldOption[],
+    multipleChoice: false,
+    optionsLayout: 'vertical' as 'vertical' | 'horizontal' | 'grid',
+    optionsColumns: 2,
+    // Campos condicionais
+    hasCondition: false,
+    conditionField: "",
+    conditionOperator: "equals" as "equals" | "not_equals" | "contains",
+    conditionValue: "",
+    // Campos informativos
+    content: "",
+    imageUrl: "",
+    imageAlt: "",
+    imageHeight: "auto",
+    textAlign: "left" as 'left' | 'center' | 'right' | 'justify',
+    fontSize: "1rem",
+    fontWeight: "normal",
+    textColor: "#000000"
+  })
   const [newOption, setNewOption] = useState("")
   const [editingFieldId, setEditingFieldId] = useState<string | null>(null)
   
-  // Estado para simular valores no preview (para testar condicionais)
+  // Estado para simular valores no preview
   const [previewData, setPreviewData] = useState<Record<string, any>>({})
 
   useEffect(() => {
@@ -192,7 +206,7 @@ export default function FormBuilderPage() {
     setNewOption("")
   }
 
-  // Função para editar uma opção existente
+  // Funções de edição de opções
   const startEditOption = (optionId: string) => {
     setCurrentField({
       ...currentField,
@@ -203,7 +217,6 @@ export default function FormBuilderPage() {
     })
   }
 
-  // Função para salvar edição de opção
   const saveOptionEdit = (optionId: string, newValue: string) => {
     setCurrentField({
       ...currentField,
@@ -215,7 +228,6 @@ export default function FormBuilderPage() {
     })
   }
 
-  // Função para cancelar edição de opção
   const cancelOptionEdit = (optionId: string) => {
     setCurrentField({
       ...currentField,
@@ -253,66 +265,32 @@ export default function FormBuilderPage() {
 
   // Adicionar ou atualizar campo
   const addOrUpdateField = () => {
-  // Para campos informativos, não precisa de label obrigatório
-  if (currentField.type !== 'info' && currentField.type !== 'image' && !currentField.label) {
-    alert('O campo precisa ter um label')
-    return
-  }
+    // Para campos informativos, não precisa de label obrigatório
+    if (currentField.type !== 'info' && currentField.type !== 'image' && !currentField.label) {
+      alert('O campo precisa ter um label')
+      return
+    }
 
-  // Para campo de imagem, verifica se tem URL
-  if (currentField.type === 'image' && !currentField.imageUrl) {
-    alert('O campo de imagem precisa ter uma URL')
-    return
-  }
+    // Validações específicas por tipo
+    if (currentField.type === 'image' && !currentField.imageUrl) {
+      alert('O campo de imagem precisa ter uma URL')
+      return
+    }
 
-  // Para campo de texto informativo, verifica se tem conteúdo
-  if (currentField.type === 'info' && !currentField.content) {
-    alert('O campo de texto informativo precisa ter conteúdo')
-    return
-  }
+    if (currentField.type === 'info' && !currentField.content) {
+      alert('O campo de texto informativo precisa ter conteúdo')
+      return
+    }
 
-  const field: FormField = {
-    id: editingFieldId || Date.now().toString(),
-    type: currentField.type,
-    label: currentField.type === 'info' ? 'Texto Informativo' : 
-           currentField.type === 'image' ? 'Imagem' : 
-           currentField.label,
-    name: currentField.name || currentField.label.toLowerCase().replace(/\s+/g, '_'),
-    required: currentField.type === 'info' || currentField.type === 'image' ? false : currentField.required,
-    placeholder: currentField.placeholder,
-    options: currentField.type === 'select' || currentField.type === 'radio' || currentField.type === 'checkbox'
-      ? currentField.options.map(o => o.value)
-      : undefined,
-    multipleChoice: currentField.type === 'checkbox' ? currentField.multipleChoice : undefined,
-    optionsLayout: ['select', 'radio', 'checkbox'].includes(currentField.type) 
-      ? currentField.optionsLayout 
-      : undefined,
-    optionsColumns: currentField.optionsLayout === 'grid' ? currentField.optionsColumns : undefined,
-    // Adicionar campos informativos
-    content: currentField.type === 'info' ? currentField.content : undefined,
-    imageUrl: currentField.type === 'image' ? currentField.imageUrl : undefined,
-    imageAlt: currentField.type === 'image' ? currentField.imageAlt : undefined,
-    imageHeight: currentField.type === 'image' ? currentField.imageHeight : undefined,
-    textAlign: currentField.type === 'info' ? currentField.textAlign : undefined,
-    fontSize: currentField.type === 'info' ? currentField.fontSize : undefined,
-    fontWeight: currentField.type === 'info' ? currentField.fontWeight : undefined,
-    textColor: currentField.type === 'info' ? currentField.textColor : undefined,
-    // Adicionar condição se configurada
-    condition: currentField.hasCondition && currentField.conditionField
-      ? {
-          field: currentField.conditionField,
-          operator: currentField.conditionOperator,
-          value: currentField.conditionValue
-        }
-      : undefined
-  }
-
-    const newfield: FormField = {
+    // Criar objeto do campo
+    const field: FormField = {
       id: editingFieldId || Date.now().toString(),
       type: currentField.type,
-      label: currentField.label,
+      label: currentField.type === 'info' ? 'Texto Informativo' : 
+             currentField.type === 'image' ? 'Imagem' : 
+             currentField.label,
       name: currentField.name || currentField.label.toLowerCase().replace(/\s+/g, '_'),
-      required: currentField.required,
+      required: currentField.type === 'info' || currentField.type === 'image' ? false : currentField.required,
       placeholder: currentField.placeholder,
       options: currentField.type === 'select' || currentField.type === 'radio' || currentField.type === 'checkbox'
         ? currentField.options.map(o => o.value)
@@ -322,6 +300,15 @@ export default function FormBuilderPage() {
         ? currentField.optionsLayout 
         : undefined,
       optionsColumns: currentField.optionsLayout === 'grid' ? currentField.optionsColumns : undefined,
+      // Adicionar campos informativos
+      content: currentField.type === 'info' ? currentField.content : undefined,
+      imageUrl: currentField.type === 'image' ? currentField.imageUrl : undefined,
+      imageAlt: currentField.type === 'image' ? currentField.imageAlt : undefined,
+      imageHeight: currentField.type === 'image' ? currentField.imageHeight : undefined,
+      textAlign: currentField.type === 'info' ? currentField.textAlign : undefined,
+      fontSize: currentField.type === 'info' ? currentField.fontSize : undefined,
+      fontWeight: currentField.type === 'info' ? currentField.fontWeight : undefined,
+      textColor: currentField.type === 'info' ? currentField.textColor : undefined,
       // Adicionar condição se configurada
       condition: currentField.hasCondition && currentField.conditionField
         ? {
@@ -333,21 +320,18 @@ export default function FormBuilderPage() {
     }
 
     if (editingFieldId) {
-  // Atualizar campo existente
-  setForm({
-    ...form,
-    fields: form.fields.map((f: FormField) =>
-      f.id === editingFieldId ? { ...f, ...newField } : f
-    )
-  })
-} else {
-  // Adicionar campo novo
-  setForm({
-    ...form,
-    fields: [...form.fields, newField]
-  })
-}
-
+      // Atualizar campo existente
+      setForm({
+        ...form,
+        fields: form.fields.map((f: FormField) =>
+          f.id === editingFieldId ? field : f
+        )
+      })
+      setEditingFieldId(null)
+    } else {
+      // Adicionar campo novo com posição baseada no layout
+      const fieldCount = form.fields.length
+      let position = { row: 0, col: 0, width: 12 }
       
       if (form.layout === 'single') {
         position = { row: fieldCount, col: 0, width: 12 }
@@ -357,8 +341,6 @@ export default function FormBuilderPage() {
           col: (fieldCount % 2) * 6,
           width: 6
         }
-      } else {
-        position = { row: fieldCount, col: 0, width: 12 }
       }
       
       setForm({
@@ -381,12 +363,20 @@ export default function FormBuilderPage() {
       hasCondition: false,
       conditionField: "",
       conditionOperator: "equals",
-      conditionValue: ""
+      conditionValue: "",
+      content: "",
+      imageUrl: "",
+      imageAlt: "",
+      imageHeight: "auto",
+      textAlign: "left",
+      fontSize: "1rem",
+      fontWeight: "normal",
+      textColor: "#000000"
     })
     setNewOption("")
   }
 
-  // Função para iniciar edição de um campo existente
+  // Iniciar edição de campo existente
   const startEditField = (field: FormField) => {
     setEditingFieldId(field.id)
     setCurrentField({
@@ -403,12 +393,10 @@ export default function FormBuilderPage() {
       multipleChoice: field.multipleChoice || false,
       optionsLayout: field.optionsLayout || 'vertical',
       optionsColumns: field.optionsColumns || 2,
-      // Campos condicionais
       hasCondition: !!field.condition,
       conditionField: field.condition?.field || "",
       conditionOperator: field.condition?.operator || "equals",
       conditionValue: field.condition?.value || "",
-      // Campos informativos
       content: field.content || "",
       imageUrl: field.imageUrl || "",
       imageAlt: field.imageAlt || "",
@@ -438,7 +426,6 @@ export default function FormBuilderPage() {
       conditionField: "",
       conditionOperator: "equals",
       conditionValue: "",
-      // Campos informativos
       content: "",
       imageUrl: "",
       imageAlt: "",
@@ -479,7 +466,7 @@ export default function FormBuilderPage() {
     setForm({ ...form, fields: newFields })
   }
 
-  // Função para atualizar um campo específico
+  // Atualizar campo específico
   const updateField = (fieldId: string, updates: Partial<FormField>) => {
     setForm({
       ...form,
@@ -489,12 +476,12 @@ export default function FormBuilderPage() {
     })
   }
 
-  // Função para reordenar campos
+  // Reordenar campos
   const reorderFields = (newFields: FormField[]) => {
     setForm({ ...form, fields: newFields })
   }
 
-  // Verificar se um campo deve ser exibido baseado em condições
+  // Verificar se campo deve ser exibido baseado em condições
   const shouldShowField = (field: FormField): boolean => {
     if (!field.condition) return true
     
@@ -521,7 +508,7 @@ export default function FormBuilderPage() {
     }
   }
 
-  // Obter lista de campos que podem ser usados em condições
+  // Obter campos que podem ser usados em condições (excluir campos informativos)
   const getConditionableFields = () => {
     return form.fields.filter((f: FormField) => 
       ['select', 'radio', 'checkbox', 'text'].includes(f.type) && 
@@ -529,50 +516,25 @@ export default function FormBuilderPage() {
     )
   }
 
-  // Obter opções do campo selecionado para condição
-const getConditionFieldOptions = (fieldId: string) => {
-  const field = form.fields.find((f: FormField) => f.id === fieldId)
-  if (!field) return []
+  // CORREÇÃO: Função para obter opções do campo selecionado
+  // Esta função deve sempre retornar um array de strings, nunca JSX
+  const getConditionFieldOptions = (fieldId: string): string[] => {
+    const field = form.fields.find((f: FormField) => f.id === fieldId)
+    if (!field) return []
 
-  switch (field.type) {
-    case 'select':
-    case 'radio':
-    case 'checkbox':
-      return field.options || []
-
-    case 'info':
-      return (
-        <div className="w-full">
-          <InfoFieldPreview
-            content={field.content}
-            textAlign={field.textAlign}
-            fontSize={field.fontSize}
-            fontWeight={field.fontWeight}
-            textColor={field.textColor}
-            isBuilder={true}
-          />
-        </div>
-      )
-
-    case 'image':
-      return (
-        <div className="w-full">
-          <InfoFieldPreview
-            imageUrl={field.imageUrl}
-            imageAlt={field.imageAlt}
-            imageHeight={field.imageHeight}
-            textAlign={field.textAlign}
-            isBuilder={true}
-          />
-        </div>
-      )
-
-    default:
-      return null
+    // Apenas campos com opções (select, radio, checkbox) retornam suas opções
+    // Campos informativos (info, image) não podem ser usados em condições
+    switch (field.type) {
+      case 'select':
+      case 'radio':
+      case 'checkbox':
+        return field.options || []
+      default:
+        return [] // Para todos os outros tipos, retornar array vazio
+    }
   }
-}
 
-  // Renderizar preview do formulário usando CSS Grid (igual ao formulário público)
+// Renderizar preview do formulário
   const renderPreview = () => {
     const showContainer = form.style?.showContainer !== false
     
@@ -629,7 +591,7 @@ const getConditionFieldOptions = (fieldId: string) => {
       padding: form.style?.fieldPadding || '0.5rem 1rem',
     }
 
-    // Renderizar campos com CSS Grid (igual ao formulário público)
+    // Renderizar campos com layout
     const renderFields = () => {
       if (form.fields.length === 0) {
         return (
@@ -639,9 +601,8 @@ const getConditionFieldOptions = (fieldId: string) => {
         )
       }
 
-      // Para layout custom com CSS Grid
+      // Layout customizado com CSS Grid
       if (form.layout === 'custom') {
-        // Filtrar campos visíveis baseado em condições
         const visibleFields = form.fields.filter((f: FormField) => shouldShowField(f))
         
         if (visibleFields.length === 0) {
@@ -652,7 +613,6 @@ const getConditionFieldOptions = (fieldId: string) => {
           )
         }
         
-        // Organizar campos por linha
         const fieldsByRow: { [key: number]: FormField[] } = {}
         let maxRow = 0
         
@@ -719,7 +679,7 @@ const getConditionFieldOptions = (fieldId: string) => {
       )
     }
 
-    // Função para renderizar preview de campo individual
+    // Renderizar preview de campo individual
     const renderFieldPreview = (field: FormField, fieldStyle: any) => {
       const labelStyle = {
         color: form.style?.headingColor || '#111827',
@@ -735,13 +695,43 @@ const getConditionFieldOptions = (fieldId: string) => {
         ? `grid grid-cols-${field.optionsColumns || 2} gap-2`
         : 'space-y-2'
 
-      // Mostrar indicador de campo condicional
       const conditionalIndicator = field.condition ? (
         <span className="ml-2 text-xs text-blue-500 italic">
           (Condicional)
         </span>
       ) : null
 
+      // Renderizar campos informativos
+      if (field.type === 'info') {
+        return (
+          <div className="w-full">
+            <InfoFieldPreview
+              content={field.content}
+              textAlign={field.textAlign}
+              fontSize={field.fontSize}
+              fontWeight={field.fontWeight}
+              textColor={field.textColor}
+              isBuilder={true}
+            />
+          </div>
+        )
+      }
+
+      if (field.type === 'image') {
+        return (
+          <div className="w-full">
+            <InfoFieldPreview
+              imageUrl={field.imageUrl}
+              imageAlt={field.imageAlt}
+              imageHeight={field.imageHeight}
+              textAlign={field.textAlign}
+              isBuilder={true}
+            />
+          </div>
+        )
+      }
+
+      // Renderizar campos de formulário normais
       return (
         <div className="w-full">
           <label style={labelStyle}>
@@ -834,7 +824,6 @@ const getConditionFieldOptions = (fieldId: string) => {
             </p>
           )}
           
-          {/* Controles de teste para condicionais */}
           {form.fields.some((f: FormField) => f.condition) && (
             <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm">
               <p className="font-semibold text-blue-800 mb-2">
@@ -856,6 +845,7 @@ const getConditionFieldOptions = (fieldId: string) => {
     )
   }
 
+  // Verificar carregamento
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -864,6 +854,7 @@ const getConditionFieldOptions = (fieldId: string) => {
     )
   }
 
+// Renderizar interface principal
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -961,7 +952,7 @@ const getConditionFieldOptions = (fieldId: string) => {
                     </TabsTrigger>
                   </TabsList>
 
-                  {/* Tab de Campos */}
+                  {/* Tab de Campos - Parte 1 */}
                   <TabsContent value="fields" className="p-6 space-y-4">
                     {/* Adicionar ou editar campo */}
                     <div className="space-y-4 border-b pb-4">
@@ -973,27 +964,27 @@ const getConditionFieldOptions = (fieldId: string) => {
                         <div>
                           <Label>Tipo de Campo</Label>
                           <select
-  className="w-full px-3 py-2 border rounded-md"
-  value={currentField.type}
-  onChange={(e) => setCurrentField({...currentField, type: e.target.value, options: []})}
->
-  <optgroup label="Campos de Entrada">
-    <option value="text">Texto</option>
-    <option value="email">Email</option>
-    <option value="tel">Telefone</option>
-    <option value="number">Número</option>
-    <option value="date">Data</option>
-    <option value="textarea">Texto Longo</option>
-    <option value="select">Lista Suspensa</option>
-    <option value="radio">Seleção Única</option>
-    <option value="checkbox">Múltipla Escolha</option>
-    <option value="signature">Assinatura</option>
-  </optgroup>
-  <optgroup label="Campos Informativos">
-    <option value="info">📄 Texto Informativo</option>
-    <option value="image">🖼️ Imagem</option>
-  </optgroup>
-</select>
+                            className="w-full px-3 py-2 border rounded-md"
+                            value={currentField.type}
+                            onChange={(e) => setCurrentField({...currentField, type: e.target.value, options: []})}
+                          >
+                            <optgroup label="Campos de Entrada">
+                              <option value="text">Texto</option>
+                              <option value="email">Email</option>
+                              <option value="tel">Telefone</option>
+                              <option value="number">Número</option>
+                              <option value="date">Data</option>
+                              <option value="textarea">Texto Longo</option>
+                              <option value="select">Lista Suspensa</option>
+                              <option value="radio">Seleção Única</option>
+                              <option value="checkbox">Múltipla Escolha</option>
+                              <option value="signature">Assinatura</option>
+                            </optgroup>
+                            <optgroup label="Campos Informativos">
+                              <option value="info">📄 Texto Informativo</option>
+                              <option value="image">🖼️ Imagem</option>
+                            </optgroup>
+                          </select>
                         </div>
                         <div>
                           <Label>Label</Label>
@@ -1001,428 +992,444 @@ const getConditionFieldOptions = (fieldId: string) => {
                             value={currentField.label}
                             onChange={(e) => setCurrentField({...currentField, label: e.target.value})}
                             placeholder="Ex: Nome Completo"
-                          />
-                        </div>
-                      </div>
-{/* Configurações para campo de texto informativo */}
-{currentField.type === 'info' && (
-  <div className="space-y-3 border rounded-lg p-3 bg-blue-50">
-    <Label className="text-blue-800">⚠️ Este é um campo apenas para exibição</Label>
-    
-    <div>
-      <Label>Conteúdo do Texto</Label>
-      <textarea
-        className="w-full px-3 py-2 border rounded-md min-h-[100px]"
-        value={currentField.content}
-        onChange={(e) => setCurrentField({...currentField, content: e.target.value})}
-        placeholder="Digite o texto que será exibido..."
-      />
-    </div>
-
-    <div className="grid grid-cols-2 gap-3">
-      <div>
-        <Label>Alinhamento</Label>
-        <select
-          className="w-full px-3 py-2 border rounded-md"
-          value={currentField.textAlign}
-          onChange={(e) => setCurrentField({...currentField, textAlign: e.target.value as any})}
-        >
-          <option value="left">Esquerda</option>
-          <option value="center">Centro</option>
-          <option value="right">Direita</option>
-          <option value="justify">Justificado</option>
-        </select>
-      </div>
-
-      <div>
-        <Label>Tamanho da Fonte</Label>
-        <select
-          className="w-full px-3 py-2 border rounded-md"
-          value={currentField.fontSize}
-          onChange={(e) => setCurrentField({...currentField, fontSize: e.target.value})}
-        >
-          <option value="0.875rem">Pequeno</option>
-          <option value="1rem">Normal</option>
-          <option value="1.125rem">Médio</option>
-          <option value="1.25rem">Grande</option>
-          <option value="1.5rem">Extra Grande</option>
-        </select>
-      </div>
-
-      <div>
-        <Label>Peso da Fonte</Label>
-        <select
-          className="w-full px-3 py-2 border rounded-md"
-          value={currentField.fontWeight}
-          onChange={(e) => setCurrentField({...currentField, fontWeight: e.target.value})}
-        >
-          <option value="normal">Normal</option>
-          <option value="500">Médio</option>
-          <option value="600">Semi-Negrito</option>
-          <option value="bold">Negrito</option>
-        </select>
-      </div>
-
-      <div>
-        <Label>Cor do Texto</Label>
-        <div className="flex gap-2">
-          <input
-            type="color"
-            value={currentField.textColor}
-            onChange={(e) => setCurrentField({...currentField, textColor: e.target.value})}
-            className="w-16 h-9 p-1 border rounded"
-          />
-          <Input
-            type="text"
-            value={currentField.textColor}
-            onChange={(e) => setCurrentField({...currentField, textColor: e.target.value})}
-            className="flex-1"
-          />
-        </div>
-      </div>
-    </div>
-  </div>
-)}
-
-{/* Configurações para campo de imagem */}
-{currentField.type === 'image' && (
-  <div className="space-y-3 border rounded-lg p-3 bg-green-50">
-    <Label className="text-green-800">⚠️ Este é um campo apenas para exibição de imagem</Label>
-    
-    <div>
-      <Label>URL da Imagem</Label>
-      <Input
-        value={currentField.imageUrl}
-        onChange={(e) => setCurrentField({...currentField, imageUrl: e.target.value})}
-        placeholder="https://exemplo.com/imagem.jpg"
-      />
-    </div>
-
-    <div>
-      <Label>Texto Alternativo (Acessibilidade)</Label>
-      <Input
-        value={currentField.imageAlt}
-        onChange={(e) => setCurrentField({...currentField, imageAlt: e.target.value})}
-        placeholder="Descrição da imagem"
-      />
-    </div>
-
-    <div>
-      <Label>Altura da Imagem</Label>
-      <select
-        className="w-full px-3 py-2 border rounded-md"
-        value={currentField.imageHeight}
-        onChange={(e) => setCurrentField({...currentField, imageHeight: e.target.value})}
-      >
-        <option value="auto">Automático</option>
-        <option value="150px">Pequena (150px)</option>
-        <option value="250px">Média (250px)</option>
-        <option value="400px">Grande (400px)</option>
-        <option value="100%">Largura Total</option>
-      </select>
-    </div>
-
-    {/* Preview da imagem */}
-    {currentField.imageUrl && (
-      <div className="border rounded p-2 bg-white">
-        <Label className="text-sm mb-2 block">Preview:</Label>
-        <img 
-          src={currentField.imageUrl} 
-          alt={currentField.imageAlt || "Preview"}
-          style={{ height: currentField.imageHeight, maxWidth: '100%' }}
-          className="rounded"
-          onError={(e) => {
-            e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="150"%3E%3Crect fill="%23ddd" width="200" height="150"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%23999"%3EImagem não encontrada%3C/text%3E%3C/svg%3E'
-          }}
-        />
-      </div>
-    )}
-  </div>
-)}
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div>
-                          <Label>Nome do Campo (sistema)</Label>
-                          <Input
-                            value={currentField.name}
-                            onChange={(e) => setCurrentField({...currentField, name: e.target.value})}
-                            placeholder="Ex: nome_completo"
-                          />
-                        </div>
-                        <div>
-                          <Label>Placeholder</Label>
-                          <Input
-                            value={currentField.placeholder}
-                            onChange={(e) => setCurrentField({...currentField, placeholder: e.target.value})}
-                            placeholder="Texto de ajuda"
-                            disabled={currentField.type === 'select' || currentField.type === 'radio' || currentField.type === 'checkbox'}
+                            disabled={currentField.type === 'info' || currentField.type === 'image'}
                           />
                         </div>
                       </div>
 
-                      {/* Opções para select, radio, checkbox */}
-                      {(currentField.type === 'select' || currentField.type === 'radio' || currentField.type === 'checkbox') && (
-                        <div className="space-y-3">
-                          <Label>Opções</Label>
+                      {/* Configurações para campo de texto informativo */}
+                      {currentField.type === 'info' && (
+                        <div className="space-y-3 border rounded-lg p-3 bg-blue-50">
+                          <Label className="text-blue-800">⚠️ Este é um campo apenas para exibição</Label>
                           
-                          {currentField.type === 'checkbox' && (
-                            <div className="flex items-center space-x-2 mb-2">
-                              <input
-                                type="checkbox"
-                                checked={currentField.multipleChoice}
-                                onChange={(e) => setCurrentField({...currentField, multipleChoice: e.target.checked})}
-                              />
-                              <span className="text-sm">Permitir múltiplas seleções</span>
-                            </div>
-                          )}
-
-                          {/* Layout das opções */}
-                          <div className="flex gap-2">
-                            <select
-                              className="px-3 py-2 border rounded-md text-sm"
-                              value={currentField.optionsLayout}
-                              onChange={(e) => setCurrentField({
-                                ...currentField, 
-                                optionsLayout: e.target.value as 'vertical' | 'horizontal' | 'grid'
-                              })}
-                            >
-                              <option value="vertical">Layout Vertical</option>
-                              <option value="horizontal">Layout Horizontal</option>
-                              <option value="grid">Layout Grid</option>
-                            </select>
-                            
-                            {currentField.optionsLayout === 'grid' && (
-                              <Input
-                                type="number"
-                                min="2"
-                                max="4"
-                                value={currentField.optionsColumns}
-                                onChange={(e) => setCurrentField({
-                                  ...currentField,
-                                  optionsColumns: parseInt(e.target.value) || 2
-                                })}
-                                placeholder="Colunas"
-                                className="w-24"
-                              />
-                            )}
-                          </div>
-
-                          <div className="flex gap-2">
-                            <Input
-                              value={newOption}
-                              onChange={(e) => setNewOption(e.target.value)}
-                              placeholder="Digite uma opção"
-                              onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addOption())}
+                          <div>
+                            <Label>Conteúdo do Texto</Label>
+                            <textarea
+                              className="w-full px-3 py-2 border rounded-md min-h-[100px]"
+                              value={currentField.content}
+                              onChange={(e) => setCurrentField({...currentField, content: e.target.value})}
+                              placeholder="Digite o texto que será exibido..."
                             />
-                            <Button
-                              type="button"
-                              onClick={addOption}
-                              size="sm"
-                              disabled={!newOption.trim()}
-                            >
-                              <Plus className="h-4 w-4" />
-                            </Button>
                           </div>
 
-                          {currentField.options.length > 0 && (
-                            <div className="space-y-2 max-h-48 overflow-y-auto border rounded p-2">
-                              {currentField.options.map((option, index) => (
-                                <div key={option.id} className="flex items-center gap-2 bg-white p-2 rounded">
-                                  {option.isEditing ? (
-                                    <>
-                                      <Input
-                                        defaultValue={option.value}
-                                        onKeyPress={(e) => {
-                                          if (e.key === 'Enter') {
-                                            e.preventDefault()
-                                            saveOptionEdit(option.id, (e.target as HTMLInputElement).value)
-                                          }
-                                        }}
-                                        className="flex-1 h-8"
-                                        autoFocus
-                                      />
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={(e) => {
-                                          const input = e.currentTarget.parentElement?.querySelector('input')
-                                          if (input) saveOptionEdit(option.id, input.value)
-                                        }}
-                                      >
-                                        <Check className="h-3 w-3 text-green-600" />
-                                      </Button>
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={() => cancelOptionEdit(option.id)}
-                                      >
-                                        <X className="h-3 w-3 text-red-500" />
-                                      </Button>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <span className="flex-1">{option.value}</span>
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={() => startEditOption(option.id)}
-                                      >
-                                        <Edit2 className="h-3 w-3" />
-                                      </Button>
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={() => moveOptionUp(index)}
-                                        disabled={index === 0}
-                                      >
-                                        <ArrowUp className="h-3 w-3" />
-                                      </Button>
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={() => moveOptionDown(index)}
-                                        disabled={index === currentField.options.length - 1}
-                                      >
-                                        <ArrowDown className="h-3 w-3" />
-                                      </Button>
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={() => removeOption(option.id)}
-                                      >
-                                        <X className="h-3 w-3 text-red-500" />
-                                      </Button>
-                                    </>
-                                  )}
-                                </div>
-                              ))}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label>Alinhamento</Label>
+                              <select
+                                className="w-full px-3 py-2 border rounded-md"
+                                value={currentField.textAlign}
+                                onChange={(e) => setCurrentField({...currentField, textAlign: e.target.value as any})}
+                              >
+                                <option value="left">Esquerda</option>
+                                <option value="center">Centro</option>
+                                <option value="right">Direita</option>
+                                <option value="justify">Justificado</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <Label>Tamanho da Fonte</Label>
+                              <select
+                                className="w-full px-3 py-2 border rounded-md"
+                                value={currentField.fontSize}
+                                onChange={(e) => setCurrentField({...currentField, fontSize: e.target.value})}
+                              >
+                                <option value="0.875rem">Pequeno</option>
+                                <option value="1rem">Normal</option>
+                                <option value="1.125rem">Médio</option>
+                                <option value="1.25rem">Grande</option>
+                                <option value="1.5rem">Extra Grande</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <Label>Peso da Fonte</Label>
+                              <select
+                                className="w-full px-3 py-2 border rounded-md"
+                                value={currentField.fontWeight}
+                                onChange={(e) => setCurrentField({...currentField, fontWeight: e.target.value})}
+                              >
+                                <option value="normal">Normal</option>
+                                <option value="500">Médio</option>
+                                <option value="600">Semi-Negrito</option>
+                                <option value="bold">Negrito</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <Label>Cor do Texto</Label>
+                              <div className="flex gap-2">
+                                <input
+                                  type="color"
+                                  value={currentField.textColor}
+                                  onChange={(e) => setCurrentField({...currentField, textColor: e.target.value})}
+                                  className="w-16 h-9 p-1 border rounded"
+                                />
+                                <Input
+                                  type="text"
+                                  value={currentField.textColor}
+                                  onChange={(e) => setCurrentField({...currentField, textColor: e.target.value})}
+                                  className="flex-1"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+{/* Configurações para campo de imagem */}
+                      {currentField.type === 'image' && (
+                        <div className="space-y-3 border rounded-lg p-3 bg-green-50">
+                          <Label className="text-green-800">⚠️ Este é um campo apenas para exibição de imagem</Label>
+                          
+                          <div>
+                            <Label>URL da Imagem</Label>
+                            <Input
+                              value={currentField.imageUrl}
+                              onChange={(e) => setCurrentField({...currentField, imageUrl: e.target.value})}
+                              placeholder="https://exemplo.com/imagem.jpg"
+                            />
+                          </div>
+
+                          <div>
+                            <Label>Texto Alternativo (Acessibilidade)</Label>
+                            <Input
+                              value={currentField.imageAlt}
+                              onChange={(e) => setCurrentField({...currentField, imageAlt: e.target.value})}
+                              placeholder="Descrição da imagem"
+                            />
+                          </div>
+
+                          <div>
+                            <Label>Altura da Imagem</Label>
+                            <select
+                              className="w-full px-3 py-2 border rounded-md"
+                              value={currentField.imageHeight}
+                              onChange={(e) => setCurrentField({...currentField, imageHeight: e.target.value})}
+                            >
+                              <option value="auto">Automático</option>
+                              <option value="150px">Pequena (150px)</option>
+                              <option value="250px">Média (250px)</option>
+                              <option value="400px">Grande (400px)</option>
+                              <option value="100%">Largura Total</option>
+                            </select>
+                          </div>
+
+                          {/* Preview da imagem */}
+                          {currentField.imageUrl && (
+                            <div className="border rounded p-2 bg-white">
+                              <Label className="text-sm mb-2 block">Preview:</Label>
+                              <img 
+                                src={currentField.imageUrl} 
+                                alt={currentField.imageAlt || "Preview"}
+                                style={{ height: currentField.imageHeight, maxWidth: '100%' }}
+                                className="rounded"
+                                onError={(e) => {
+                                  e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="150"%3E%3Crect fill="%23ddd" width="200" height="150"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%23999"%3EImagem não encontrada%3C/text%3E%3C/svg%3E'
+                                }}
+                              />
                             </div>
                           )}
                         </div>
                       )}
 
-                      {/* Campo condicional */}
-                      <div className="space-y-3 border-t pt-3">
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            checked={currentField.hasCondition}
-                            onChange={(e) => setCurrentField({...currentField, hasCondition: e.target.checked})}
-                          />
-                          <Label className="cursor-pointer flex items-center">
-                            <GitBranch className="h-4 w-4 mr-2" />
-                            Campo Condicional (mostrar/ocultar baseado em outro campo)
-                          </Label>
-                        </div>
-
-                        {currentField.hasCondition && (
-                          <div className="space-y-3 pl-6 border-l-2 border-blue-200">
+                      {/* Campos normais de formulário */}
+                      {currentField.type !== 'info' && currentField.type !== 'image' && (
+                        <>
+                          <div className="grid gap-4 md:grid-cols-2">
                             <div>
-                              <Label>Mostrar este campo quando:</Label>
+                              <Label>Nome do Campo (sistema)</Label>
+                              <Input
+                                value={currentField.name}
+                                onChange={(e) => setCurrentField({...currentField, name: e.target.value})}
+                                placeholder="Ex: nome_completo"
+                              />
                             </div>
-                            
-                            <div className="grid gap-3 md:grid-cols-3">
-                              <div>
-                                <Label className="text-xs">Campo</Label>
+                            <div>
+                              <Label>Placeholder</Label>
+                              <Input
+                                value={currentField.placeholder}
+                                onChange={(e) => setCurrentField({...currentField, placeholder: e.target.value})}
+                                placeholder="Texto de ajuda"
+                                disabled={currentField.type === 'select' || currentField.type === 'radio' || currentField.type === 'checkbox'}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Opções para select, radio, checkbox */}
+                          {(currentField.type === 'select' || currentField.type === 'radio' || currentField.type === 'checkbox') && (
+                            <div className="space-y-3">
+                              <Label>Opções</Label>
+                              
+                              {currentField.type === 'checkbox' && (
+                                <div className="flex items-center space-x-2 mb-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={currentField.multipleChoice}
+                                    onChange={(e) => setCurrentField({...currentField, multipleChoice: e.target.checked})}
+                                  />
+                                  <span className="text-sm">Permitir múltiplas seleções</span>
+                                </div>
+                              )}
+
+                              {/* Layout das opções */}
+                              <div className="flex gap-2">
                                 <select
-                                  className="w-full px-2 py-1 border rounded text-sm"
-                                  value={currentField.conditionField}
+                                  className="px-3 py-2 border rounded-md text-sm"
+                                  value={currentField.optionsLayout}
                                   onChange={(e) => setCurrentField({
                                     ...currentField, 
-                                    conditionField: e.target.value,
-                                    conditionValue: '' // Resetar valor ao mudar campo
+                                    optionsLayout: e.target.value as 'vertical' | 'horizontal' | 'grid'
                                   })}
                                 >
-                                  <option value="">Selecione...</option>
-                                  {getConditionableFields().map((f: FormField) => (
-                                    <option key={f.id} value={f.id}>
-                                      {f.label}
-                                    </option>
-                                  ))}
+                                  <option value="vertical">Layout Vertical</option>
+                                  <option value="horizontal">Layout Horizontal</option>
+                                  <option value="grid">Layout Grid</option>
                                 </select>
-                              </div>
-
-                              <div>
-                                <Label className="text-xs">Condição</Label>
-                                <select
-                                  className="w-full px-2 py-1 border rounded text-sm"
-                                  value={currentField.conditionOperator}
-                                  onChange={(e) => setCurrentField({
-                                    ...currentField, 
-                                    conditionOperator: e.target.value as any
-                                  })}
-                                >
-                                  <option value="equals">For igual a</option>
-                                  <option value="not_equals">For diferente de</option>
-                                  <option value="contains">Contiver</option>
-                                </select>
-                              </div>
-
-                              <div>
-                                <Label className="text-xs">Valor</Label>
-                                {getConditionFieldOptions(currentField.conditionField).length > 0 ? (
-                                  <select
-                                    className="w-full px-2 py-1 border rounded text-sm"
-                                    value={currentField.conditionValue}
-                                    onChange={(e) => setCurrentField({
-                                      ...currentField, 
-                                      conditionValue: e.target.value
-                                    })}
-                                  >
-                                    <option value="">Selecione...</option>
-                                    {getConditionFieldOptions(currentField.conditionField).map((opt: string) => (
-                                      <option key={opt} value={opt}>
-                                        {opt}
-                                      </option>
-                                    ))}
-                                  </select>
-                                ) : (
+                                
+                                {currentField.optionsLayout === 'grid' && (
                                   <Input
-                                    className="h-8 text-sm"
-                                    value={currentField.conditionValue}
+                                    type="number"
+                                    min="2"
+                                    max="4"
+                                    value={currentField.optionsColumns}
                                     onChange={(e) => setCurrentField({
-                                      ...currentField, 
-                                      conditionValue: e.target.value
+                                      ...currentField,
+                                      optionsColumns: parseInt(e.target.value) || 2
                                     })}
-                                    placeholder="Digite o valor"
+                                    placeholder="Colunas"
+                                    className="w-24"
                                   />
                                 )}
                               </div>
-                            </div>
 
-                            {currentField.conditionField && currentField.conditionValue && (
-                              <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
-                                ✓ Este campo será exibido quando "{getConditionableFields().find((f: FormField) => f.id === currentField.conditionField)?.label}" 
-                                {currentField.conditionOperator === 'equals' && ' for igual a '}
-                                {currentField.conditionOperator === 'not_equals' && ' for diferente de '}
-                                {currentField.conditionOperator === 'contains' && ' contiver '}
-                                "{currentField.conditionValue}"
+                              <div className="flex gap-2">
+                                <Input
+                                  value={newOption}
+                                  onChange={(e) => setNewOption(e.target.value)}
+                                  placeholder="Digite uma opção"
+                                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addOption())}
+                                />
+                                <Button
+                                  type="button"
+                                  onClick={addOption}
+                                  size="sm"
+                                  disabled={!newOption.trim()}
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </Button>
                               </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
 
-                      <div className="flex items-center space-x-4">
-                        <label className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            checked={currentField.required}
-                            onChange={(e) => setCurrentField({...currentField, required: e.target.checked})}
-                          />
-                          <span>Campo Obrigatório</span>
-                        </label>
-                      </div>
+                              {currentField.options.length > 0 && (
+                                <div className="space-y-2 max-h-48 overflow-y-auto border rounded p-2">
+                                  {currentField.options.map((option, index) => (
+                                    <div key={option.id} className="flex items-center gap-2 bg-white p-2 rounded">
+                                      {option.isEditing ? (
+                                        <>
+                                          <Input
+                                            defaultValue={option.value}
+                                            onKeyPress={(e) => {
+                                              if (e.key === 'Enter') {
+                                                e.preventDefault()
+                                                saveOptionEdit(option.id, (e.target as HTMLInputElement).value)
+                                              }
+                                            }}
+                                            className="flex-1 h-8"
+                                            autoFocus
+                                          />
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={(e) => {
+                                              const input = e.currentTarget.parentElement?.querySelector('input')
+                                              if (input) saveOptionEdit(option.id, input.value)
+                                            }}
+                                          >
+                                            <Check className="h-3 w-3 text-green-600" />
+                                          </Button>
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => cancelOptionEdit(option.id)}
+                                          >
+                                            <X className="h-3 w-3 text-red-500" />
+                                          </Button>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <span className="flex-1">{option.value}</span>
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => startEditOption(option.id)}
+                                          >
+                                            <Edit2 className="h-3 w-3" />
+                                          </Button>
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => moveOptionUp(index)}
+                                            disabled={index === 0}
+                                          >
+                                            <ArrowUp className="h-3 w-3" />
+                                          </Button>
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => moveOptionDown(index)}
+                                            disabled={index === currentField.options.length - 1}
+                                          >
+                                            <ArrowDown className="h-3 w-3" />
+                                          </Button>
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => removeOption(option.id)}
+                                          >
+                                            <X className="h-3 w-3 text-red-500" />
+                                          </Button>
+                                        </>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      )}
+
+        {/* Campo condicional */}
+                      {currentField.type !== 'info' && currentField.type !== 'image' && (
+                        <div className="space-y-3 border-t pt-3">
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              checked={currentField.hasCondition}
+                              onChange={(e) => setCurrentField({...currentField, hasCondition: e.target.checked})}
+                            />
+                            <Label className="cursor-pointer flex items-center">
+                              <GitBranch className="h-4 w-4 mr-2" />
+                              Campo Condicional (mostrar/ocultar baseado em outro campo)
+                            </Label>
+                          </div>
+
+                          {currentField.hasCondition && (
+                            <div className="space-y-3 pl-6 border-l-2 border-blue-200">
+                              <div>
+                                <Label>Mostrar este campo quando:</Label>
+                              </div>
+                              
+                              <div className="grid gap-3 md:grid-cols-3">
+                                <div>
+                                  <Label className="text-xs">Campo</Label>
+                                  <select
+                                    className="w-full px-2 py-1 border rounded text-sm"
+                                    value={currentField.conditionField}
+                                    onChange={(e) => setCurrentField({
+                                      ...currentField, 
+                                      conditionField: e.target.value,
+                                      conditionValue: ''
+                                    })}
+                                  >
+                                    <option value="">Selecione...</option>
+                                    {getConditionableFields().map((f: FormField) => (
+                                      <option key={f.id} value={f.id}>
+                                        {f.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                <div>
+                                  <Label className="text-xs">Condição</Label>
+                                  <select
+                                    className="w-full px-2 py-1 border rounded text-sm"
+                                    value={currentField.conditionOperator}
+                                    onChange={(e) => setCurrentField({
+                                      ...currentField, 
+                                      conditionOperator: e.target.value as any
+                                    })}
+                                  >
+                                    <option value="equals">For igual a</option>
+                                    <option value="not_equals">For diferente de</option>
+                                    <option value="contains">Contiver</option>
+                                  </select>
+                                </div>
+
+                                <div>
+                                  <Label className="text-xs">Valor</Label>
+                                  {getConditionFieldOptions(currentField.conditionField).length > 0 ? (
+                                    <select
+                                      className="w-full px-2 py-1 border rounded text-sm"
+                                      value={currentField.conditionValue}
+                                      onChange={(e) => setCurrentField({
+                                        ...currentField, 
+                                        conditionValue: e.target.value
+                                      })}
+                                    >
+                                      <option value="">Selecione...</option>
+                                      {getConditionFieldOptions(currentField.conditionField).map((opt: string) => (
+                                        <option key={opt} value={opt}>
+                                          {opt}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  ) : (
+                                    <Input
+                                      className="h-8 text-sm"
+                                      value={currentField.conditionValue}
+                                      onChange={(e) => setCurrentField({
+                                        ...currentField, 
+                                        conditionValue: e.target.value
+                                      })}
+                                      placeholder="Digite o valor"
+                                    />
+                                  )}
+                                </div>
+                              </div>
+
+                              {currentField.conditionField && currentField.conditionValue && (
+                                <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                                  ✓ Este campo será exibido quando "{getConditionableFields().find((f: FormField) => f.id === currentField.conditionField)?.label}" 
+                                  {currentField.conditionOperator === 'equals' && ' for igual a '}
+                                  {currentField.conditionOperator === 'not_equals' && ' for diferente de '}
+                                  {currentField.conditionOperator === 'contains' && ' contiver '}
+                                  "{currentField.conditionValue}"
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Campo obrigatório */}
+                      {currentField.type !== 'info' && currentField.type !== 'image' && (
+                        <div className="flex items-center space-x-4">
+                          <label className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              checked={currentField.required}
+                              onChange={(e) => setCurrentField({...currentField, required: e.target.checked})}
+                            />
+                            <span>Campo Obrigatório</span>
+                          </label>
+                        </div>
+                      )}
 
                       <div className="flex gap-2">
                         <Button 
                           onClick={addOrUpdateField} 
-                          disabled={!currentField.label}
+                          disabled={
+                            (currentField.type !== 'info' && currentField.type !== 'image' && !currentField.label) ||
+                            (currentField.type === 'info' && !currentField.content) ||
+                            (currentField.type === 'image' && !currentField.imageUrl)
+                          }
                           className="flex-1"
                         >
                           {editingFieldId ? (
