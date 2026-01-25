@@ -5,13 +5,12 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Settings, LogOut, Link, Users, FileText, Database, Download, Upload, AlertTriangle } from "lucide-react"
+import { Settings, LogOut, Link, Users, FileText, Database, Download, Upload, AlertTriangle, LogIn } from "lucide-react"
 import Image from "next/image"
 import { FileCheck, ClipboardList, ExternalLink } from "lucide-react"
 import { Label } from "@/components/ui/label"
 
 // AUTO-INICIALIZAÇÃO PARA DEPLOY NO COOLIFY
-// O sistema criará automaticamente um usuário admin na primeira execução
 const AUTO_INIT = true
 const AUTO_ADMIN = {
   username: "admin",
@@ -21,7 +20,6 @@ const AUTO_ADMIN = {
 
 const hashPassword = async (password: string): Promise<string> => {
   if (typeof window !== "undefined" && window.crypto?.subtle) {
-    // Ambiente navegador
     const encoder = new TextEncoder()
     const data = encoder.encode(password)
     const hash = await window.crypto.subtle.digest("SHA-256", data)
@@ -29,7 +27,6 @@ const hashPassword = async (password: string): Promise<string> => {
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("")
   } else {
-    // Ambiente Node (Coolify / SSR)
     const { createHash } = await import("crypto")
     return createHash("sha256").update(password).digest("hex")
   }
@@ -56,8 +53,6 @@ interface LinkItem {
   isPublic: boolean
   icon: string
 }
-
-const defaultUsers: User[] = []
 
 const defaultLinks: LinkItem[] = [
   {
@@ -110,6 +105,10 @@ const defaultLinks: LinkItem[] = [
   },
 ]
 
+const MAX_ATTEMPTS = 5
+const BLOCK_DURATION = 15 * 60 * 1000
+const ATTEMPT_WINDOW = 5 * 60 * 1000
+
 interface LoginAttempt {
   timestamp: number
   ip: string
@@ -120,10 +119,6 @@ interface RateLimitData {
   attempts: LoginAttempt[]
   blockedUntil?: number
 }
-
-const MAX_ATTEMPTS = 5
-const BLOCK_DURATION = 15 * 60 * 1000
-const ATTEMPT_WINDOW = 5 * 60 * 1000
 
 const getRateLimitData = (): RateLimitData => {
   if (typeof window === "undefined") return { attempts: [] }
@@ -176,29 +171,15 @@ const formatTime = (ms: number): string => {
   return `${minutes} minuto${minutes !== 1 ? "s" : ""}`
 }
 
-const isProduction = process.env.NODE_ENV === "production"
-
-const handleError = (error: Error, context: string) => {
-  if (!isProduction) {
-    console.error(`[${context}]`, error)
-  }
-}
-
 export default function DentalOfficeSystem() {
   const [isInitialized, setIsInitialized] = useState(false)
-  const [initForm, setInitForm] = useState({
-    username: "",
-    password: "",
-    confirmPassword: "",
-    name: "",
-  })
   const [currentUser, setCurrentUser] = useState<User | null>(null)
-  const [users, setUsers] = useState<User[]>(defaultUsers)
+  const [users, setUsers] = useState<User[]>([])
   const [links, setLinks] = useState<LinkItem[]>(defaultLinks)
   const [loginForm, setLoginForm] = useState({ username: "", password: "" })
   const [loginError, setLoginError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [currentView, setCurrentView] = useState<"home" | "admin" | "users" | "links" | "settings">("home")
+  const [currentView, setCurrentView] = useState<"home" | "admin" | "users" | "links" | "settings" | "login">("home")
   const [siteTitle, setSiteTitle] = useState("Consultório Dr. Marcos Rocha")
   const [logoUrl, setLogoUrl] = useState("/dental-office-logo.png")
   const [editingLink, setEditingLink] = useState<LinkItem | null>(null)
@@ -218,12 +199,13 @@ export default function DentalOfficeSystem() {
     confirmPassword: "",
   })
 
-  // Auto-inicialização para produção/Coolify
+  // Auto-inicialização
   useEffect(() => {
     const initializeSystem = async () => {
       if (typeof window !== "undefined") {
         const savedUser = localStorage.getItem("currentUser")
         const savedUsers = localStorage.getItem("users")
+        const savedLinks = localStorage.getItem("links")
         const initialized = localStorage.getItem("systemInitialized")
 
         if (savedUser) {
@@ -232,8 +214,12 @@ export default function DentalOfficeSystem() {
 
         if (savedUsers) {
           setUsers(JSON.parse(savedUsers))
+        }
+
+        if (savedLinks) {
+          setLinks(JSON.parse(savedLinks))
         } else {
-          setUsers(defaultUsers)
+          localStorage.setItem("links", JSON.stringify(defaultLinks))
         }
 
         // AUTO-INICIALIZAÇÃO PARA COOLIFY
@@ -257,9 +243,8 @@ export default function DentalOfficeSystem() {
           localStorage.setItem("systemInitialized", "true")
           
           console.log("✅ Sistema inicializado com sucesso!")
-          console.log("📌 Use admin / MudeEstaSenha123! para fazer login")
         } else {
-          setIsInitialized(initialized === "true")
+          setIsInitialized(true)
         }
       }
     }
@@ -278,18 +263,6 @@ export default function DentalOfficeSystem() {
       localStorage.setItem("links", JSON.stringify(links))
     }
   }, [links])
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("siteTitle", siteTitle)
-    }
-  }, [siteTitle])
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("logoUrl", logoUrl)
-    }
-  }, [logoUrl])
 
   const exportData = () => {
     try {
@@ -314,7 +287,6 @@ export default function DentalOfficeSystem() {
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
     } catch (error) {
-      handleError(error as Error, "Export")
       alert("Erro ao exportar dados. Tente novamente.")
     }
   }
@@ -346,86 +318,66 @@ export default function DentalOfficeSystem() {
           setUsers(data.users)
           setLinks(data.links)
           setSiteTitle(data.siteTitle || "Sistema Interno - Dr. Marcos Rocha")
-          setLogoUrl(
-            data.logoUrl ||
-              "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/imagem_2025-08-29_174713093-msrQ9bJuiSdiyhTAjU8jANzDbENqSc.png",
-          )
+          setLogoUrl(data.logoUrl || "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/imagem_2025-08-29_174713093-msrQ9bJuiSdiyhTAjU8jANzDbENqSc.png")
 
-          if (typeof window !== "undefined") {
-            localStorage.setItem("users", JSON.stringify(data.users))
-            localStorage.setItem("links", JSON.stringify(data.links))
-            localStorage.setItem("siteTitle", data.siteTitle || "Sistema Interno - Dr. Marcos Rocha")
-            localStorage.setItem(
-              "logoUrl",
-              data.logoUrl ||
-                "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/imagem_2025-08-29_174713093-msrQ9bJuiSdiyhTAjU8jANzDbENqSc.png",
-            )
-          }
+          localStorage.setItem("users", JSON.stringify(data.users))
+          localStorage.setItem("links", JSON.stringify(data.links))
+          localStorage.setItem("siteTitle", data.siteTitle || "Sistema Interno - Dr. Marcos Rocha")
+          localStorage.setItem("logoUrl", data.logoUrl || "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/imagem_2025-08-29_174713093-msrQ9bJuiSdiyhTAjU8jANzDbENqSc.png")
 
           alert("Backup importado com sucesso!")
           setCurrentView("home")
         }
       } catch (error) {
-        handleError(error as Error, "Import")
         alert("Erro ao importar backup: arquivo inválido")
       }
     }
 
     reader.onerror = () => {
-      handleError(new Error("File read error"), "Import")
       alert("Erro ao ler o arquivo")
     }
 
+    reader.readAsText(file)
     event.target.value = ""
   }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    setLoginError("")
 
-    try {
-      setLoginError("")
+    const blockStatus = isBlocked()
+    if (blockStatus.blocked) {
+      const remainingTime = formatTime(blockStatus.remainingTime!)
+      setLoginError(`Muitas tentativas falhadas. Tente novamente em ${remainingTime}.`)
+      return
+    }
 
-      const blockStatus = isBlocked()
-      if (blockStatus.blocked) {
-        const remainingTime = formatTime(blockStatus.remainingTime!)
-        setLoginError(`Muitas tentativas falhadas. Tente novamente em ${remainingTime}.`)
-        return
-      }
+    setIsLoading(true)
+    await new Promise((resolve) => setTimeout(resolve, 1000))
 
-      setIsLoading(true)
-
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      for (const user of users) {
-        if (user.username === loginForm.username) {
-          const isValid = await verifyPassword(loginForm.password, user.password)
-          if (isValid) {
-            addLoginAttempt(loginForm.username, true)
-            setCurrentUser(user)
-            if (typeof window !== "undefined") {
-              localStorage.setItem("currentUser", JSON.stringify(user))
-            }
-            setLoginForm({ username: "", password: "" })
-            setIsLoading(false)
-            return
-          }
+    for (const user of users) {
+      if (user.username === loginForm.username) {
+        const isValid = await verifyPassword(loginForm.password, user.password)
+        if (isValid) {
+          addLoginAttempt(loginForm.username, true)
+          setCurrentUser(user)
+          localStorage.setItem("currentUser", JSON.stringify(user))
+          setLoginForm({ username: "", password: "" })
+          setIsLoading(false)
+          setCurrentView("home")
+          return
         }
       }
-
-      addLoginAttempt(loginForm.username, false)
-      setLoginError("Credenciais inválidas")
-      setIsLoading(false)
-    } catch (error) {
-      handleError(error as Error, "Login")
-      alert("Erro interno. Tente novamente.")
     }
+
+    addLoginAttempt(loginForm.username, false)
+    setLoginError("Credenciais inválidas")
+    setIsLoading(false)
   }
 
   const handleLogout = () => {
     setCurrentUser(null)
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("currentUser")
-    }
+    localStorage.removeItem("currentUser")
     setCurrentView("home")
   }
 
@@ -441,9 +393,6 @@ export default function DentalOfficeSystem() {
         return <FileText className="h-5 w-5" />
     }
   }
-
-  const publicLinks = links.filter((link) => link.isPublic)
-  const privateLinks = links.filter((link) => !link.isPublic)
 
   const handleAddLink = (e: React.FormEvent) => {
     e.preventDefault()
@@ -528,9 +477,6 @@ export default function DentalOfficeSystem() {
 
     const updatedUsers = [...users, newUser]
     setUsers(updatedUsers)
-    if (typeof window !== "undefined") {
-      localStorage.setItem("users", JSON.stringify(updatedUsers))
-    }
 
     setUserForm({ username: "", password: "", confirmPassword: "", role: "user", name: "" })
     setCurrentView("users")
@@ -560,13 +506,7 @@ export default function DentalOfficeSystem() {
 
       if (currentUser?.id === editingUser.id) {
         setCurrentUser(updatedUser)
-        if (typeof window !== "undefined") {
-          localStorage.setItem("currentUser", JSON.stringify(updatedUser))
-        }
-      }
-
-      if (typeof window !== "undefined") {
-        localStorage.setItem("users", JSON.stringify(updatedUsers))
+        localStorage.setItem("currentUser", JSON.stringify(updatedUser))
       }
 
       setEditingUser(null)
@@ -586,56 +526,6 @@ export default function DentalOfficeSystem() {
     }
   }
 
-  const cancelUserEdit = () => {
-    setEditingUser(null)
-    setUserForm({ username: "", password: "", name: "", role: "user", confirmPassword: "" })
-  }
-
-  const handleInitialization = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-
-    try {
-      if (initForm.password !== initForm.confirmPassword) {
-        alert("As senhas não coincidem")
-        return
-      }
-
-      if (initForm.password.length < 8) {
-        alert("A senha deve ter pelo menos 8 caracteres")
-        return
-      }
-
-      const hashedPassword = await hashPassword(initForm.password)
-
-      const adminUser: User = {
-        id: "1",
-        username: initForm.username,
-        password: hashedPassword,
-        role: "admin",
-        name: initForm.name,
-      }
-
-      const newUsers = [adminUser]
-      setUsers(newUsers)
-      setCurrentUser(adminUser)
-      setIsInitialized(true)
-
-      if (typeof window !== "undefined") {
-        localStorage.setItem("users", JSON.stringify(newUsers))
-        localStorage.setItem("currentUser", JSON.stringify(adminUser))
-        localStorage.setItem("systemInitialized", "true")
-      }
-
-      setInitForm({ username: "", password: "", confirmPassword: "", name: "" })
-    } catch (error) {
-      console.error("Erro na inicialização:", error)
-      alert("Erro ao inicializar o sistema. Tente novamente.")
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   const handleEditUser = (user: User) => {
     setEditingUser(user)
     setUserForm({
@@ -647,40 +537,40 @@ export default function DentalOfficeSystem() {
     })
   }
 
-  // Não mostra tela de inicialização se AUTO_INIT está ativo
-  if (!isInitialized && !AUTO_INIT) {
+  const cancelUserEdit = () => {
+    setEditingUser(null)
+    setUserForm({ username: "", password: "", name: "", role: "user", confirmPassword: "" })
+  }
+
+  const publicLinks = links.filter((link) => link.isPublic)
+  const privateLinks = links.filter((link) => !link.isPublic)
+
+  // Tela de Login
+  if (currentView === "login" && !currentUser) {
     return (
-      <div className="min-h-screen bg-[#1b2370] flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-[#1b2370] to-[#0f1a5c] flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           <Card className="backdrop-blur-md bg-white/10 border border-white/20 shadow-2xl">
             <CardHeader className="text-center">
               <div className="flex justify-center mb-4">
-                <img src={logoUrl || "/placeholder.svg"} alt="Dr. Marcos Rocha Logo" className="h-20 w-auto" />
+                <img 
+                  src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/imagem_2025-08-29_174713093-msrQ9bJuiSdiyhTAjU8jANzDbENqSc.png" 
+                  alt="Logo" 
+                  className="h-20 w-auto"
+                />
               </div>
-              <CardTitle className="text-white text-2xl font-bold">Configuração Inicial</CardTitle>
-              <CardDescription className="text-white/80">Configure o usuário administrador do sistema</CardDescription>
+              <CardTitle className="text-white text-2xl font-bold">Área Restrita</CardTitle>
+              <CardDescription className="text-white/80">Faça login para acessar ferramentas administrativas</CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleInitialization} className="space-y-4">
+              <form onSubmit={handleLogin} className="space-y-4">
                 <div>
-                  <Label className="text-white/90 text-sm font-medium">Nome Completo</Label>
+                  <Label className="text-white/90 text-sm font-medium">Usuário</Label>
                   <Input
                     type="text"
-                    placeholder="Digite seu nome completo"
-                    value={initForm.name}
-                    onChange={(e) => setInitForm({ ...initForm, name: e.target.value })}
-                    required
-                    className="mt-1 bg-white/10 border-white/20 text-white placeholder:text-white/60 focus:ring-2 focus:ring-amber-400/50"
-                    disabled={isLoading}
-                  />
-                </div>
-                <div>
-                  <Label className="text-white/90 text-sm font-medium">Nome de Usuário</Label>
-                  <Input
-                    type="text"
-                    placeholder="Digite o nome de usuário"
-                    value={initForm.username}
-                    onChange={(e) => setInitForm({ ...initForm, username: e.target.value })}
+                    placeholder="Digite seu usuário"
+                    value={loginForm.username}
+                    onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
                     required
                     className="mt-1 bg-white/10 border-white/20 text-white placeholder:text-white/60 focus:ring-2 focus:ring-amber-400/50"
                     disabled={isLoading}
@@ -690,34 +580,37 @@ export default function DentalOfficeSystem() {
                   <Label className="text-white/90 text-sm font-medium">Senha</Label>
                   <Input
                     type="password"
-                    placeholder="Senha (mínimo 8 caracteres)"
-                    value={initForm.password}
-                    onChange={(e) => setInitForm({ ...initForm, password: e.target.value })}
-                    required
-                    minLength={8}
-                    className="mt-1 bg-white/10 border-white/20 text-white placeholder:text-white/60 focus:ring-2 focus:ring-amber-400/50"
-                    disabled={isLoading}
-                  />
-                </div>
-                <div>
-                  <Label className="text-white/90 text-sm font-medium">Confirmar Senha</Label>
-                  <Input
-                    type="password"
-                    placeholder="Confirme a senha"
-                    value={initForm.confirmPassword}
-                    onChange={(e) => setInitForm({ ...initForm, confirmPassword: e.target.value })}
+                    placeholder="Digite sua senha"
+                    value={loginForm.password}
+                    onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
                     required
                     className="mt-1 bg-white/10 border-white/20 text-white placeholder:text-white/60 focus:ring-2 focus:ring-amber-400/50"
                     disabled={isLoading}
                   />
                 </div>
-                <Button
-                  type="submit"
-                  className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-semibold py-3 transition-all duration-200 shadow-lg"
-                  disabled={isLoading}
-                >
-                  {isLoading ? "Inicializando..." : "Inicializar Sistema"}
-                </Button>
+                {loginError && (
+                  <div className="backdrop-blur-md bg-red-500/20 border border-red-400/30 rounded-xl p-3">
+                    <p className="text-red-200 text-sm text-center">{loginError}</p>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    onClick={() => setCurrentView("home")}
+                    variant="outline"
+                    className="flex-1 backdrop-blur-sm bg-white/10 border-white/20 text-white hover:bg-white/20"
+                    disabled={isLoading}
+                  >
+                    Voltar
+                  </Button>
+                  <Button
+                    type="submit"
+                    className="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-semibold transition-all duration-200 shadow-lg"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? "Entrando..." : "Entrar"}
+                  </Button>
+                </div>
               </form>
             </CardContent>
           </Card>
@@ -726,232 +619,45 @@ export default function DentalOfficeSystem() {
     )
   }
 
-  if (!currentUser) {
+  // Tela de Configurações
+  if (currentView === "settings" && currentUser?.role === "admin") {
     return (
-      <div className="min-h-screen bg-[#1b2370] flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-8 shadow-2xl">
-            <div className="text-center mb-8">
-              <img
-                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/imagem_2025-08-29_174713093-msrQ9bJuiSdiyhTAjU8jANzDbENqSc.png"
-                alt="Logo"
-                className="w-20 h-20 mx-auto mb-4"
-              />
-              <h1 className="text-2xl font-bold text-white mb-2">Sistema Interno</h1>
-              <p className="text-white/80">Dr. Marcos Rocha - Cirurgião Dentista</p>
-            </div>
-
-            <form onSubmit={handleLogin} className="space-y-6">
-              <div>
-                <label className="block text-white/90 text-sm font-medium mb-2">Usuário</label>
-                <input
-                  type="text"
-                  value={loginForm.username}
-                  onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
-                  className="w-full px-4 py-3 backdrop-blur-md bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-transparent"
-                  placeholder="Digite seu usuário"
-                  required
-                  disabled={isLoading}
+      <div className="min-h-screen bg-gradient-to-br from-[#1b2370] to-[#0f1a5c]">
+        <header className="backdrop-blur-md bg-white/10 border-b border-white/20 shadow-lg">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <div className="flex items-center space-x-4">
+                <img 
+                  src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/imagem_2025-08-29_174713093-msrQ9bJuiSdiyhTAjU8jANzDbENqSc.png" 
+                  alt="Logo" 
+                  className="h-10 w-auto"
                 />
+                <h1 className="text-xl font-bold text-white">{siteTitle}</h1>
               </div>
-
-              <div>
-                <label className="block text-white/90 text-sm font-medium mb-2">Senha</label>
-                <input
-                  type="password"
-                  value={loginForm.password}
-                  onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                  className="w-full px-4 py-3 backdrop-blur-md bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-transparent"
-                  placeholder="Digite sua senha"
-                  required
-                  disabled={isLoading}
-                />
-              </div>
-
-              {loginError && (
-                <div className="backdrop-blur-md bg-red-500/20 border border-red-400/30 rounded-xl p-3">
-                  <p className="text-red-200 text-sm text-center">{loginError}</p>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full bg-gradient-to-r from-amber-500 to-amber-600 text-white py-3 px-6 rounded-xl font-semibold hover:from-amber-600 hover:to-amber-700 transition-all duration-200 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? "Entrando..." : "Entrar"}
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1b2370] to-[#0f1a5c]">
-      <header className="backdrop-blur-md bg-white/10 border-b border-white/20 shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              <Image src={logoUrl || "/placeholder.svg"} alt="Logo" width={40} height={40} />
-              <h1 className="text-xl font-bold text-white">{siteTitle}</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-blue-200">Olá, {currentUser.name}</span>
-              {currentUser.role === "admin" && (
+              <div className="flex items-center space-x-4">
+                <span className="text-sm text-blue-200">Olá, {currentUser.name}</span>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setCurrentView(currentView === "settings" ? "home" : "settings")}
+                  onClick={() => setCurrentView("home")}
                   className="text-blue-200 hover:bg-white/10"
                 >
-                  <Settings className="h-4 w-4" />
+                  Voltar
                 </Button>
-              )}
-              <Button variant="ghost" size="sm" onClick={handleLogout} className="text-blue-200 hover:bg-white/10">
-                <LogOut className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {currentView === "home" && (
-          <div className="space-y-6">
-            <div className="backdrop-blur-md bg-white/10 rounded-lg border border-white/20 p-6 shadow-xl">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold text-white mb-2">Bem-vindo, {currentUser.name}!</h2>
-                  <p className="text-blue-200">
-                    Acesso como: <span className="font-semibold capitalize text-white">{currentUser.role}</span>
-                  </p>
-                  <p className="text-sm text-blue-300 mt-1">
-                    Sistema interno de gestão -{" "}
-                    {new Date().toLocaleDateString("pt-BR", {
-                      weekday: "long",
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    })}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm text-blue-200">
-                    <p>Links públicos: {publicLinks.length}</p>
-                    <p>Links restritos: {privateLinks.length}</p>
-                    {currentUser.role === "admin" && <p>Usuários cadastrados: {users.length}</p>}
-                  </div>
-                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleLogout} 
+                  className="text-blue-200 hover:bg-white/10"
+                >
+                  <LogOut className="h-4 w-4" />
+                </Button>
               </div>
             </div>
-
-            <div className="grid gap-6 md:grid-cols-2">
-              <Card className="backdrop-blur-md bg-white/10 border-white/20 shadow-xl">
-                <CardHeader>
-                  <CardTitle className="text-white flex items-center">
-                    <FileText className="h-5 w-5 mr-2" />
-                    Área Pública
-                  </CardTitle>
-                  <CardDescription className="text-blue-200">Links disponíveis para pacientes</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {publicLinks.map((link) => (
-                    <Button
-                      key={link.id}
-                      variant="outline"
-                      className="w-full justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white h-auto py-3"
-                      onClick={() => window.open(link.url, "_blank")}
-                    >
-                      <div className="flex items-center w-full">
-                        {getIconComponent(link.icon)}
-                        <div className="ml-2 text-left flex-1">
-                          <div className="font-medium text-white">{link.name}</div>
-                          <div className="text-xs text-blue-200 opacity-80">{link.subtitle}</div>
-                        </div>
-                        <ExternalLink className="h-4 w-4 ml-auto text-blue-200" />
-                      </div>
-                    </Button>
-                  ))}
-                </CardContent>
-              </Card>
-
-              <Card className="backdrop-blur-md bg-white/10 border-white/20 shadow-xl">
-                <CardHeader>
-                  <CardTitle className="text-white flex items-center">
-                    <Settings className="h-5 w-5 mr-2" />
-                    Área Restrita
-                  </CardTitle>
-                  <CardDescription className="text-blue-200">
-                    Ferramentas para funcionários autenticados
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {privateLinks.map((link) => (
-                    <Button
-                      key={link.id}
-                      variant="outline"
-                      className="w-full justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white h-auto py-3"
-                      onClick={() => window.open(link.url, "_blank")}
-                    >
-                      <div className="flex items-center w-full">
-                        {getIconComponent(link.icon)}
-                        <div className="ml-2 text-left flex-1">
-                          <div className="font-medium text-white">{link.name}</div>
-                          <div className="text-xs text-blue-200 opacity-80">{link.subtitle}</div>
-                        </div>
-                        <ExternalLink className="h-4 w-4 ml-auto text-blue-200" />
-                      </div>
-                    </Button>
-                  ))}
-                </CardContent>
-              </Card>
-            </div>
-
-            {currentUser.role === "admin" && (
-              <Card className="backdrop-blur-md bg-white/10 border-white/20 shadow-xl">
-                <CardHeader>
-                  <CardTitle className="text-white flex items-center">
-                    <Settings className="h-5 w-5 mr-2" />
-                    Ações Rápidas - Administrador
-                  </CardTitle>
-                  <CardDescription className="text-blue-200">Acesso rápido às funções administrativas</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <Button
-                      variant="outline"
-                      className="justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white"
-                      onClick={() => setCurrentView("links")}
-                    >
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      Gerenciar Links
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white"
-                      onClick={() => setCurrentView("users")}
-                    >
-                      <Users className="h-4 w-4 mr-2" />
-                      Gerenciar Usuários
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white"
-                      onClick={() => setCurrentView("settings")}
-                    >
-                      <Settings className="h-4 w-4 mr-2" />
-                      Configurações
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
           </div>
-        )}
+        </header>
 
-        {currentView === "settings" && currentUser?.role === "admin" && (
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="space-y-6">
             <div className="text-center">
               <h2 className="text-2xl font-bold text-white mb-2">Configurações do Sistema</h2>
@@ -1037,19 +743,53 @@ export default function DentalOfficeSystem() {
               </div>
             </div>
           </div>
-        )}
+        </main>
+      </div>
+    )
+  }
 
-        {currentView === "links" && currentUser.role === "admin" && (
+  // Tela de Gerenciar Links
+  if (currentView === "links" && currentUser?.role === "admin") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#1b2370] to-[#0f1a5c]">
+        <header className="backdrop-blur-md bg-white/10 border-b border-white/20 shadow-lg">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <div className="flex items-center space-x-4">
+                <img 
+                  src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/imagem_2025-08-29_174713093-msrQ9bJuiSdiyhTAjU8jANzDbENqSc.png" 
+                  alt="Logo" 
+                  className="h-10 w-auto"
+                />
+                <h1 className="text-xl font-bold text-white">{siteTitle}</h1>
+              </div>
+              <div className="flex items-center space-x-4">
+                <span className="text-sm text-blue-200">Olá, {currentUser.name}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setCurrentView("settings")}
+                  className="text-blue-200 hover:bg-white/10"
+                >
+                  Voltar
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleLogout} 
+                  className="text-blue-200 hover:bg-white/10"
+                >
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-bold text-white">Gerenciar Links</h2>
-              <Button
-                variant="outline"
-                onClick={() => setCurrentView("settings")}
-                className="backdrop-blur-sm bg-white/10 border-white/20 hover:bg-white/20 text-white"
-              >
-                Voltar
-              </Button>
             </div>
 
             <Card className="backdrop-blur-md bg-white/10 border-white/20 shadow-xl">
@@ -1265,19 +1005,53 @@ export default function DentalOfficeSystem() {
               </Card>
             </div>
           </div>
-        )}
+        </main>
+      </div>
+    )
+  }
 
-        {currentView === "users" && currentUser.role === "admin" && (
+  // Tela de Gerenciar Usuários
+  if (currentView === "users" && currentUser?.role === "admin") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#1b2370] to-[#0f1a5c]">
+        <header className="backdrop-blur-md bg-white/10 border-b border-white/20 shadow-lg">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <div className="flex items-center space-x-4">
+                <img 
+                  src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/imagem_2025-08-29_174713093-msrQ9bJuiSdiyhTAjU8jANzDbENqSc.png" 
+                  alt="Logo" 
+                  className="h-10 w-auto"
+                />
+                <h1 className="text-xl font-bold text-white">{siteTitle}</h1>
+              </div>
+              <div className="flex items-center space-x-4">
+                <span className="text-sm text-blue-200">Olá, {currentUser.name}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setCurrentView("settings")}
+                  className="text-blue-200 hover:bg-white/10"
+                >
+                  Voltar
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleLogout} 
+                  className="text-blue-200 hover:bg-white/10"
+                >
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-bold text-white">Gerenciar Usuários</h2>
-              <Button
-                variant="outline"
-                onClick={() => setCurrentView("settings")}
-                className="backdrop-blur-sm bg-white/10 border-white/20 hover:bg-white/20 text-white"
-              >
-                Voltar
-              </Button>
             </div>
 
             <Card className="backdrop-blur-md bg-white/10 border-white/20 shadow-xl">
@@ -1317,7 +1091,7 @@ export default function DentalOfficeSystem() {
                     </div>
                     <div>
                       <Label htmlFor="userPassword" className="text-white">
-                        Senha
+                        Senha {editingUser && "(deixe em branco para manter)"}
                       </Label>
                       <Input
                         id="userPassword"
@@ -1326,6 +1100,19 @@ export default function DentalOfficeSystem() {
                         onChange={(e) => setUserForm((prev) => ({ ...prev, password: e.target.value }))}
                         className="backdrop-blur-sm bg-white/10 border-white/20 text-white placeholder:text-blue-200 focus:border-white/40"
                         required={!editingUser}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="userConfirmPassword" className="text-white">
+                        Confirmar Senha
+                      </Label>
+                      <Input
+                        id="userConfirmPassword"
+                        type="password"
+                        value={userForm.confirmPassword}
+                        onChange={(e) => setUserForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+                        className="backdrop-blur-sm bg-white/10 border-white/20 text-white placeholder:text-blue-200 focus:border-white/40"
+                        required={!editingUser || userForm.password !== ""}
                       />
                     </div>
                     <div>
@@ -1338,26 +1125,13 @@ export default function DentalOfficeSystem() {
                         onChange={(e) => setUserForm((prev) => ({ ...prev, role: e.target.value as "admin" | "user" }))}
                         className="w-full px-3 py-2 backdrop-blur-sm bg-white/10 border border-white/20 rounded-md focus:border-white/40 focus:outline-none text-white"
                       >
-                        <option value="admin" className="bg-[#1b2370] text-white">
-                          Admin
-                        </option>
                         <option value="user" className="bg-[#1b2370] text-white">
                           Usuário
                         </option>
+                        <option value="admin" className="bg-[#1b2370] text-white">
+                          Admin
+                        </option>
                       </select>
-                    </div>
-                    <div>
-                      <Label htmlFor="userConfirmPassword" className="text-white">
-                        Confirmar Senha
-                      </Label>
-                      <Input
-                        id="userConfirmPassword"
-                        type="password"
-                        value={userForm.confirmPassword}
-                        onChange={(e) => setUserForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
-                        className="backdrop-blur-sm bg-white/10 border-white/20 text-white placeholder:text-blue-200 focus:border-white/40"
-                        required={!editingUser}
-                      />
                     </div>
                   </div>
 
@@ -1383,51 +1157,257 @@ export default function DentalOfficeSystem() {
               </CardContent>
             </Card>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <Card className="backdrop-blur-md bg-white/10 border-white/20 shadow-xl">
-                <CardHeader>
-                  <CardTitle className="text-white">Usuários</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {users.map((user) => (
-                    <div
-                      key={user.id}
-                      className="flex items-center justify-between p-3 backdrop-blur-sm bg-white/5 border border-white/10 rounded-lg"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <Users className="h-5 w-5 mr-2" />
-                        <div>
-                          <p className="font-medium text-white">{user.name}</p>
-                          <p className="text-sm text-blue-200">{user.username}</p>
-                          <p className="text-xs text-blue-300 truncate max-w-xs">{user.role}</p>
-                        </div>
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleEditUser(user)}
-                          className="backdrop-blur-sm bg-white/5 border-white/20 text-white hover:bg-white/10"
-                        >
-                          Editar
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleDeleteUser(user.id)}
-                          className="backdrop-blur-sm bg-red-500/20 border-red-400/30 text-red-200 hover:bg-red-500/30"
-                        >
-                          Excluir
-                        </Button>
+            <Card className="backdrop-blur-md bg-white/10 border-white/20 shadow-xl">
+              <CardHeader>
+                <CardTitle className="text-white">Usuários Cadastrados</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {users.map((user) => (
+                  <div
+                    key={user.id}
+                    className="flex items-center justify-between p-3 backdrop-blur-sm bg-white/5 border border-white/10 rounded-lg"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <Users className="h-5 w-5 text-white" />
+                      <div>
+                        <p className="font-medium text-white">{user.name}</p>
+                        <p className="text-sm text-blue-200">@{user.username}</p>
+                        <p className="text-xs text-blue-300 capitalize">{user.role}</p>
                       </div>
                     </div>
-                  ))}
-                  {users.length === 0 && <p className="text-blue-200 text-center py-4">Nenhum usuário cadastrado</p>}
-                </CardContent>
-              </Card>
+                    <div className="flex space-x-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleEditUser(user)}
+                        className="backdrop-blur-sm bg-white/5 border-white/20 text-white hover:bg-white/10"
+                      >
+                        Editar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleDeleteUser(user.id)}
+                        disabled={currentUser.id === user.id}
+                        className={
+                          currentUser.id === user.id
+                            ? "backdrop-blur-sm bg-gray-500/20 border-gray-400/30 text-gray-300 opacity-50 cursor-not-allowed"
+                            : "backdrop-blur-sm bg-red-500/20 border-red-400/30 text-red-200 hover:bg-red-500/30"
+                        }
+                      >
+                        Excluir
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                {users.length === 0 && <p className="text-blue-200 text-center py-4">Nenhum usuário cadastrado</p>}
+              </CardContent>
+            </Card>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  // Página Principal (sempre acessível)
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-[#1b2370] to-[#0f1a5c]">
+      <header className="backdrop-blur-md bg-white/10 border-b border-white/20 shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-4">
+              <img 
+                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/imagem_2025-08-29_174713093-msrQ9bJuiSdiyhTAjU8jANzDbENqSc.png" 
+                alt="Logo" 
+                className="h-10 w-auto"
+              />
+              <h1 className="text-xl font-bold text-white">{siteTitle}</h1>
+            </div>
+            <div className="flex items-center space-x-4">
+              {currentUser ? (
+                <>
+                  <span className="text-sm text-blue-200">Olá, {currentUser.name}</span>
+                  {currentUser.role === "admin" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCurrentView("settings")}
+                      className="text-blue-200 hover:bg-white/10"
+                    >
+                      <Settings className="h-4 w-4" />
+                    </Button>
+                  )}
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={handleLogout} 
+                    className="text-blue-200 hover:bg-white/10"
+                  >
+                    <LogOut className="h-4 w-4 mr-1" />
+                    Sair
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  onClick={() => setCurrentView("login")}
+                  className="bg-white/20 hover:bg-white/30 text-white backdrop-blur-sm border border-white/20"
+                >
+                  <LogIn className="h-4 w-4 mr-2" />
+                  Login
+                </Button>
+              )}
             </div>
           </div>
-        )}
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="space-y-6">
+          {/* Mensagem de boas-vindas */}
+          <div className="backdrop-blur-md bg-white/10 rounded-lg border border-white/20 p-6 shadow-xl">
+            <h2 className="text-2xl font-bold text-white mb-2">
+              {currentUser ? `Bem-vindo, ${currentUser.name}!` : "Bem-vindo ao Sistema Interno"}
+            </h2>
+            <p className="text-blue-200">
+              {currentUser 
+                ? `Acesso como: ${currentUser.role === "admin" ? "Administrador" : "Usuário"}`
+                : "Acesse os formulários públicos ou faça login para mais recursos"}
+            </p>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Links Públicos (sempre visível) */}
+            <Card className="backdrop-blur-md bg-white/10 border-white/20 shadow-xl">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center">
+                  <FileText className="h-5 w-5 mr-2" />
+                  Área Pública
+                </CardTitle>
+                <CardDescription className="text-blue-200">
+                  Formulários disponíveis para pacientes
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {publicLinks.map((link) => (
+                  <Button
+                    key={link.id}
+                    variant="outline"
+                    className="w-full justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white h-auto py-3"
+                    onClick={() => window.open(link.url, "_blank")}
+                  >
+                    <div className="flex items-center w-full">
+                      {getIconComponent(link.icon)}
+                      <div className="ml-2 text-left flex-1">
+                        <div className="font-medium text-white">{link.name}</div>
+                        <div className="text-xs text-blue-200 opacity-80">{link.subtitle}</div>
+                      </div>
+                      <ExternalLink className="h-4 w-4 ml-auto text-blue-200" />
+                    </div>
+                  </Button>
+                ))}
+              </CardContent>
+            </Card>
+
+            {/* Links Privados (visível apenas quando logado) */}
+            {currentUser ? (
+              <Card className="backdrop-blur-md bg-white/10 border-white/20 shadow-xl">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center">
+                    <Settings className="h-5 w-5 mr-2" />
+                    Área Restrita
+                  </CardTitle>
+                  <CardDescription className="text-blue-200">
+                    Ferramentas para funcionários autenticados
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {privateLinks.map((link) => (
+                    <Button
+                      key={link.id}
+                      variant="outline"
+                      className="w-full justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white h-auto py-3"
+                      onClick={() => window.open(link.url, "_blank")}
+                    >
+                      <div className="flex items-center w-full">
+                        {getIconComponent(link.icon)}
+                        <div className="ml-2 text-left flex-1">
+                          <div className="font-medium text-white">{link.name}</div>
+                          <div className="text-xs text-blue-200 opacity-80">{link.subtitle}</div>
+                        </div>
+                        <ExternalLink className="h-4 w-4 ml-auto text-blue-200" />
+                      </div>
+                    </Button>
+                  ))}
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="backdrop-blur-md bg-white/10 border-white/20 shadow-xl">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center">
+                    <Settings className="h-5 w-5 mr-2" />
+                    Área Restrita
+                  </CardTitle>
+                  <CardDescription className="text-blue-200">
+                    Faça login para acessar ferramentas exclusivas
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col items-center justify-center py-12">
+                  <LogIn className="h-12 w-12 text-white/40 mb-4" />
+                  <p className="text-white/60 mb-4 text-center">
+                    Esta área contém ferramentas administrativas e formulários exclusivos para funcionários.
+                  </p>
+                  <Button
+                    onClick={() => setCurrentView("login")}
+                    className="bg-white/20 hover:bg-white/30 text-white backdrop-blur-sm border border-white/20"
+                  >
+                    <LogIn className="h-4 w-4 mr-2" />
+                    Fazer Login
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          {/* Painel Admin (visível apenas para admins logados) */}
+          {currentUser?.role === "admin" && (
+            <Card className="backdrop-blur-md bg-white/10 border-white/20 shadow-xl">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center">
+                  <Settings className="h-5 w-5 mr-2" />
+                  Ações Rápidas - Administrador
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <Button
+                    variant="outline"
+                    className="justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white"
+                    onClick={() => setCurrentView("links")}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Gerenciar Links
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white"
+                    onClick={() => setCurrentView("users")}
+                  >
+                    <Users className="h-4 w-4 mr-2" />
+                    Gerenciar Usuários
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white"
+                    onClick={() => setCurrentView("settings")}
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Configurações
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </main>
     </div>
   )
