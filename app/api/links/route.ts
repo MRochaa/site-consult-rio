@@ -8,16 +8,24 @@ const secret = new TextEncoder().encode(
 );
 
 async function verifyAuth(request: NextRequest) {
-  const token = cookies().get('auth-token')?.value;
-  
-  if (!token) {
-    return null;
-  }
-  
   try {
+    // Tentar pegar token do cookie primeiro
+    const cookieStore = cookies();
+    const cookieToken = cookieStore.get('auth-token');
+    
+    // Se não tiver no cookie, tentar pegar do header
+    const headerToken = request.headers.get('X-Auth-Token');
+    
+    const token = cookieToken?.value || headerToken;
+    
+    if (!token) {
+      return null;
+    }
+    
     const { payload } = await jwtVerify(token, secret);
     return payload;
-  } catch {
+  } catch (error) {
+    console.error('Auth verification error:', error);
     return null;
   }
 }

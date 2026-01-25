@@ -9,6 +9,8 @@ import { Settings, LogOut, Link, Users, FileText, Database, Download, Upload, Al
 import Image from "next/image"
 import { FileCheck, ClipboardList, ExternalLink } from "lucide-react"
 import { Label } from "@/components/ui/label"
+import { useRouter } from "next/navigation"
+import { AuthClient } from "@/lib/auth-client"
 
 interface User {
   id: string
@@ -27,6 +29,7 @@ interface LinkItem {
 }
 
 export default function DentalOfficeSystem() {
+  const router = useRouter()
   const [isInitialized, setIsInitialized] = useState(false)
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [users, setUsers] = useState<User[]>([])
@@ -81,168 +84,172 @@ export default function DentalOfficeSystem() {
   }
 
   const fetchLinks = async () => {
-    try {
-      const response = await fetch('/api/links')
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error)
-      setLinks(data)
-    } catch (error) {
-      console.error('Error fetching links:', error)
-    }
+  try {
+    const response = await AuthClient.fetchWithAuth('/api/links')
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error)
+    setLinks(data)
+  } catch (error) {
+    console.error('Error fetching links:', error)
   }
+}
 
   const fetchUsers = async () => {
-    try {
-      const response = await fetch('/api/users')
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error)
-      setUsers(data)
-    } catch (error) {
-      console.error('Error fetching users:', error)
-    }
+  try {
+    const response = await AuthClient.fetchWithAuth('/api/users')
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error)
+    setUsers(data)
+  } catch (error) {
+    console.error('Error fetching users:', error)
   }
+}
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoginError("")
-    setIsLoading(true)
+  e.preventDefault()
+  setLoginError("")
+  setIsLoading(true)
 
-    try {
-      const response = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(loginForm)
-      })
+  try {
+    const response = await fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(loginForm),
+      credentials: 'include'
+    })
 
-      const data = await response.json()
-      
-      if (!response.ok) {
-        setLoginError(data.error || 'Erro ao fazer login')
-        return
-      }
-
-      setCurrentUser(data.user)
-      setLoginForm({ username: "", password: "" })
-      setCurrentView("home")
-      
-      // Recarregar links após login
-      fetchLinks()
-      
-      // Carregar usuários se for admin
-      if (data.user.role === 'admin') {
-        fetchUsers()
-      }
-    } catch (error) {
-      setLoginError('Erro ao conectar com o servidor')
-    } finally {
-      setIsLoading(false)
+    const data = await response.json()
+    
+    if (!response.ok) {
+      setLoginError(data.error || 'Erro ao fazer login')
+      return
     }
+
+    // Salvar token no localStorage como backup
+    if (data.token) {
+      AuthClient.saveToken(data.token)
+    }
+
+    setCurrentUser(data.user)
+    setLoginForm({ username: "", password: "" })
+    setCurrentView("home")
+    
+    // Recarregar links após login
+    fetchLinks()
+    
+    // Carregar usuários se for admin
+    if (data.user.role === 'admin') {
+      fetchUsers()
+    }
+  } catch (error) {
+    setLoginError('Erro ao conectar com o servidor')
+  } finally {
+    setIsLoading(false)
   }
+}
 
   const handleLogout = async () => {
-    try {
-      await fetch('/api/auth', { method: 'DELETE' })
-      setCurrentUser(null)
-      setUsers([])
-      setCurrentView("home")
-      // Recarregar apenas links públicos
-      fetchLinks()
-    } catch (error) {
-      console.error('Error logging out:', error)
-    }
+  try {
+    await fetch('/api/auth', { method: 'DELETE', credentials: 'include' })
+    AuthClient.clearToken() // Limpar token do localStorage
+    setCurrentUser(null)
+    setUsers([])
+    setCurrentView("home")
+    // Recarregar apenas links públicos
+    fetchLinks()
+  } catch (error) {
+    console.error('Error logging out:', error)
   }
+}
 
   const exportData = async () => {
-    try {
-      const response = await fetch('/api/backup')
-      const data = await response.json()
-      
-      if (!response.ok) throw new Error(data.error)
-      
-      const dataStr = JSON.stringify(data, null, 2)
-      const dataBlob = new Blob([dataStr], { type: "application/json" })
-      const url = URL.createObjectURL(dataBlob)
+  try {
+    const response = await AuthClient.fetchWithAuth('/api/backup')
+    const data = await response.json()
+    
+    if (!response.ok) throw new Error(data.error)
+    
+    const dataStr = JSON.stringify(data, null, 2)
+    const dataBlob = new Blob([dataStr], { type: "application/json" })
+    const url = URL.createObjectURL(dataBlob)
 
-      const link = document.createElement("a")
-      link.href = url
-      link.download = `dental-office-backup-${new Date().toISOString().split("T")[0]}.json`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
-    } catch (error) {
-      alert("Erro ao exportar dados. Tente novamente.")
-    }
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `dental-office-backup-${new Date().toISOString().split("T")[0]}.json`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  } catch (error) {
+    alert("Erro ao exportar dados. Tente novamente.")
   }
+}
 
-  const importData = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
+const importData = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const file = event.target.files?.[0]
+  if (!file) return
 
-    const reader = new FileReader()
-    reader.onload = async (e) => {
-      try {
-        const data = JSON.parse(e.target?.result as string)
-
-        if (confirm(
-          `Importar backup de ${data.exportDate ? new Date(data.exportDate).toLocaleDateString() : "data desconhecida"}? Isso substituirá todos os dados atuais.`
-        )) {
-          const response = await fetch('/api/backup', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-          })
-
-          const result = await response.json()
-          
-          if (!response.ok) throw new Error(result.error)
-
-          alert("Backup importado com sucesso!")
-          setCurrentView("home")
-          
-          // Recarregar dados
-          fetchLinks()
-          if (currentUser?.role === 'admin') {
-            fetchUsers()
-          }
-        }
-      } catch (error) {
-        alert("Erro ao importar backup: " + (error as Error).message)
-      }
-    }
-
-    reader.onerror = () => {
-      alert("Erro ao ler o arquivo")
-    }
-
-    reader.readAsText(file)
-    event.target.value = ""
-  }
-
-  const handleAddLink = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const reader = new FileReader()
+  reader.onload = async (e) => {
     try {
-      const response = await fetch('/api/links', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: linkForm.name,
-          subtitle: linkForm.subtitle,
-          url: linkForm.url,
-          is_public: linkForm.isPublic,
-          icon: linkForm.icon
+      const data = JSON.parse(e.target?.result as string)
+
+      if (confirm(
+        `Importar backup de ${data.exportDate ? new Date(data.exportDate).toLocaleDateString() : "data desconhecida"}? Isso substituirá todos os dados atuais.`
+      )) {
+        const response = await AuthClient.fetchWithAuth('/api/backup', {
+          method: 'POST',
+          body: JSON.stringify(data)
         })
-      })
 
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error)
+        const result = await response.json()
+        
+        if (!response.ok) throw new Error(result.error)
 
-      setLinkForm({ name: "", subtitle: "", url: "", isPublic: true, icon: "FileText" })
-      fetchLinks()
+        alert("Backup importado com sucesso!")
+        setCurrentView("home")
+        
+        // Recarregar dados
+        fetchLinks()
+        if (currentUser?.role === 'admin') {
+          fetchUsers()
+        }
+      }
     } catch (error) {
-      alert("Erro ao adicionar link: " + (error as Error).message)
+      alert("Erro ao importar backup: " + (error as Error).message)
     }
   }
+
+  reader.onerror = () => {
+    alert("Erro ao ler o arquivo")
+  }
+
+  reader.readAsText(file)
+  event.target.value = ""
+}
+  const handleAddLink = async (e: React.FormEvent) => {
+  e.preventDefault()
+  try {
+    const response = await AuthClient.fetchWithAuth('/api/links', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: linkForm.name,
+        subtitle: linkForm.subtitle,
+        url: linkForm.url,
+        is_public: linkForm.isPublic,
+        icon: linkForm.icon
+      })
+    })
+
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error)
+
+    setLinkForm({ name: "", subtitle: "", url: "", isPublic: true, icon: "FileText" })
+    fetchLinks()
+  } catch (error) {
+    alert("Erro ao adicionar link: " + (error as Error).message)
+  }
+}
 
   const handleEditLink = (link: LinkItem) => {
     setEditingLink(link)
@@ -256,50 +263,49 @@ export default function DentalOfficeSystem() {
   }
 
   const handleUpdateLink = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!editingLink) return
+  e.preventDefault()
+  if (!editingLink) return
 
+  try {
+    const response = await AuthClient.fetchWithAuth('/api/links', {
+      method: 'PUT',
+      body: JSON.stringify({
+        id: editingLink.id,
+        name: linkForm.name,
+        subtitle: linkForm.subtitle,
+        url: linkForm.url,
+        is_public: linkForm.isPublic,
+        icon: linkForm.icon
+      })
+    })
+
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error)
+
+    setEditingLink(null)
+    setLinkForm({ name: "", subtitle: "", url: "", isPublic: true, icon: "FileText" })
+    fetchLinks()
+  } catch (error) {
+    alert("Erro ao atualizar link: " + (error as Error).message)
+  }
+}
+
+  const handleDeleteLink = async (linkId: string) => {
+  if (confirm("Tem certeza que deseja excluir este link?")) {
     try {
-      const response = await fetch('/api/links', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: editingLink.id,
-          name: linkForm.name,
-          subtitle: linkForm.subtitle,
-          url: linkForm.url,
-          is_public: linkForm.isPublic,
-          icon: linkForm.icon
-        })
+      const response = await AuthClient.fetchWithAuth(`/api/links?id=${linkId}`, {
+        method: 'DELETE'
       })
 
       const data = await response.json()
       if (!response.ok) throw new Error(data.error)
 
-      setEditingLink(null)
-      setLinkForm({ name: "", subtitle: "", url: "", isPublic: true, icon: "FileText" })
       fetchLinks()
     } catch (error) {
-      alert("Erro ao atualizar link: " + (error as Error).message)
+      alert("Erro ao excluir link: " + (error as Error).message)
     }
   }
-
-  const handleDeleteLink = async (linkId: string) => {
-    if (confirm("Tem certeza que deseja excluir este link?")) {
-      try {
-        const response = await fetch(`/api/links?id=${linkId}`, {
-          method: 'DELETE'
-        })
-
-        const data = await response.json()
-        if (!response.ok) throw new Error(data.error)
-
-        fetchLinks()
-      } catch (error) {
-        alert("Erro ao excluir link: " + (error as Error).message)
-      }
-    }
-  }
+}
 
   const cancelEdit = () => {
     setEditingLink(null)
@@ -307,97 +313,95 @@ export default function DentalOfficeSystem() {
   }
 
   const handleCreateUser = async (e: React.FormEvent) => {
-    e.preventDefault()
+  e.preventDefault()
 
-    if (userForm.password !== userForm.confirmPassword) {
-      alert("As senhas não coincidem")
-      return
-    }
+  if (userForm.password !== userForm.confirmPassword) {
+    alert("As senhas não coincidem")
+    return
+  }
 
+  try {
+    const response = await AuthClient.fetchWithAuth('/api/users', {
+      method: 'POST',
+      body: JSON.stringify({
+        username: userForm.username,
+        password: userForm.password,
+        name: userForm.name,
+        role: userForm.role
+      })
+    })
+
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error)
+
+    setUserForm({ username: "", password: "", confirmPassword: "", role: "user", name: "" })
+    setCurrentView("users")
+    fetchUsers()
+  } catch (error) {
+    alert("Erro ao criar usuário: " + (error as Error).message)
+  }
+}
+
+  const handleUpdateUser = async (e: React.FormEvent) => {
+  e.preventDefault()
+
+  if (userForm.password && userForm.password !== userForm.confirmPassword) {
+    alert("As senhas não coincidem")
+    return
+  }
+
+  if (editingUser) {
     try {
-      const response = await fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: userForm.username,
-          password: userForm.password,
-          name: userForm.name,
-          role: userForm.role
-        })
+      const updates: any = {
+        id: editingUser.id,
+        username: userForm.username,
+        name: userForm.name,
+        role: userForm.role
+      }
+
+      if (userForm.password) {
+        updates.password = userForm.password
+      }
+
+      const response = await AuthClient.fetchWithAuth('/api/users', {
+        method: 'PUT',
+        body: JSON.stringify(updates)
       })
 
       const data = await response.json()
       if (!response.ok) throw new Error(data.error)
 
+      setEditingUser(null)
       setUserForm({ username: "", password: "", confirmPassword: "", role: "user", name: "" })
       setCurrentView("users")
       fetchUsers()
     } catch (error) {
-      alert("Erro ao criar usuário: " + (error as Error).message)
+      alert("Erro ao atualizar usuário: " + (error as Error).message)
     }
   }
-
-  const handleUpdateUser = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (userForm.password && userForm.password !== userForm.confirmPassword) {
-      alert("As senhas não coincidem")
-      return
-    }
-
-    if (editingUser) {
-      try {
-        const updates: any = {
-          id: editingUser.id,
-          username: userForm.username,
-          name: userForm.name,
-          role: userForm.role
-        }
-
-        if (userForm.password) {
-          updates.password = userForm.password
-        }
-
-        const response = await fetch('/api/users', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updates)
-        })
-
-        const data = await response.json()
-        if (!response.ok) throw new Error(data.error)
-
-        setEditingUser(null)
-        setUserForm({ username: "", password: "", confirmPassword: "", role: "user", name: "" })
-        setCurrentView("users")
-        fetchUsers()
-      } catch (error) {
-        alert("Erro ao atualizar usuário: " + (error as Error).message)
-      }
-    }
-  }
+}
 
   const handleDeleteUser = async (userId: string) => {
-    if (currentUser && currentUser.id === userId) {
-      alert("Você não pode excluir sua própria conta!")
-      return
-    }
+  if (currentUser && currentUser.id === userId) {
+    alert("Você não pode excluir sua própria conta!")
+    return
+  }
 
-    if (confirm("Tem certeza que deseja excluir este usuário?")) {
-      try {
-        const response = await fetch(`/api/users?id=${userId}`, {
-          method: 'DELETE'
-        })
+  if (confirm("Tem certeza que deseja excluir este usuário?")) {
+    try {
+      const response = await AuthClient.fetchWithAuth(`/api/users?id=${userId}`, {
+        method: 'DELETE'
+      })
 
-        const data = await response.json()
-        if (!response.ok) throw new Error(data.error)
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error)
 
-        fetchUsers()
-      } catch (error) {
-        alert("Erro ao excluir usuário: " + (error as Error).message)
-      }
+      fetchUsers()
+    } catch (error) {
+      alert("Erro ao excluir usuário: " + (error as Error).message)
     }
   }
+}
 
   const handleEditUser = (user: User) => {
     setEditingUser(user)
@@ -1265,44 +1269,52 @@ export default function DentalOfficeSystem() {
           </div>
 
           {/* Painel Admin (visível apenas para admins logados) */}
-          {currentUser?.role === "admin" && (
-            <Card className="backdrop-blur-md bg-white/10 border-white/20 shadow-xl">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center">
-                  <Settings className="h-5 w-5 mr-2" />
-                  Ações Rápidas - Administrador
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-3 md:grid-cols-3">
-                  <Button
-                    variant="outline"
-                    className="justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white"
-                    onClick={() => setCurrentView("links")}
-                  >
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Gerenciar Links
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white"
-                    onClick={() => setCurrentView("users")}
-                  >
-                    <Users className="h-4 w-4 mr-2" />
-                    Gerenciar Usuários
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white"
-                    onClick={() => setCurrentView("settings")}
-                  >
-                    <Settings className="h-4 w-4 mr-2" />
-                    Configurações
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+{currentUser?.role === "admin" && (
+  <Card className="backdrop-blur-md bg-white/10 border-white/20 shadow-xl">
+    <CardHeader>
+      <CardTitle className="text-white flex items-center">
+        <Settings className="h-5 w-5 mr-2" />
+        Ações Rápidas - Administrador
+      </CardTitle>
+    </CardHeader>
+    <CardContent>
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <Button
+          variant="outline"
+          className="justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white"
+          onClick={() => setCurrentView("links")}
+        >
+          <ExternalLink className="h-4 w-4 mr-2" />
+          Gerenciar Links
+        </Button>
+        <Button
+          variant="outline"
+          className="justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white"
+          onClick={() => setCurrentView("users")}
+        >
+          <Users className="h-4 w-4 mr-2" />
+          Gerenciar Usuários
+        </Button>
+        <Button
+          variant="outline"
+          className="justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white"
+          onClick={() => setCurrentView("settings")}
+        >
+          <Settings className="h-4 w-4 mr-2" />
+          Configurações
+        </Button>
+        <Button
+          variant="outline"
+          className="justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white"
+          onClick={() => router.push('/admin/forms')}
+        >
+          <FileText className="h-4 w-4 mr-2" />
+          Formulários Dinâmicos
+        </Button>
+      </div>
+    </CardContent>
+  </Card>
+)}
         </div>
       </main>
     </div>

@@ -8,16 +8,26 @@ const secret = new TextEncoder().encode(
 );
 
 async function verifyAuth(request: NextRequest) {
-  const token = cookies().get('auth-token')?.value;
-  
-  if (!token) {
-    return null;
-  }
-  
   try {
+    // Tentar pegar token do cookie primeiro
+    const cookieStore = cookies();
+    const cookieToken = cookieStore.get('auth-token');
+    
+    // Se não tiver no cookie, tentar pegar do header
+    const headerToken = request.headers.get('X-Auth-Token');
+    
+    const token = cookieToken?.value || headerToken;
+    
+    if (!token) {
+      console.log('No token found in /api/users');
+      return null;
+    }
+    
     const { payload } = await jwtVerify(token, secret);
+    console.log('Auth verified in /api/users:', payload);
     return payload;
-  } catch {
+  } catch (error) {
+    console.error('Auth verification error in /api/users:', error);
     return null;
   }
 }
@@ -25,7 +35,16 @@ async function verifyAuth(request: NextRequest) {
 export async function GET(request: NextRequest) {
   const auth = await verifyAuth(request);
   
-  if (!auth || auth.role !== 'admin') {
+  if (!auth) {
+    console.log('GET /api/users - No auth');
+    return NextResponse.json(
+      { error: 'Não autorizado' },
+      { status: 401 }
+    );
+  }
+
+  if (auth.role !== 'admin') {
+    console.log('GET /api/users - Not admin:', auth.role);
     return NextResponse.json(
       { error: 'Não autorizado' },
       { status: 401 }

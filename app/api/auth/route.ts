@@ -31,22 +31,29 @@ export async function POST(request: NextRequest) {
       .setExpirationTime('24h')
       .sign(secret);
     
-    // Set cookie
-    cookies().set('auth-token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 60 * 60 * 24 // 24 hours
-    });
-    
-    return NextResponse.json({
+    // Create response with token in body AND cookie
+    const response = NextResponse.json({
       user: {
         id: user.id,
         username: user.username,
         name: user.name,
         role: user.role
-      }
+      },
+      token: token // Incluir token na resposta
     });
+
+    // Set cookie
+    response.cookies.set({
+      name: 'auth-token',
+      value: token,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24, // 24 hours
+      path: '/'
+    });
+    
+    return response;
   } catch (error) {
     console.error('Login error:', error);
     return NextResponse.json(
@@ -58,7 +65,14 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const token = cookies().get('auth-token')?.value;
+    // Tentar pegar token do cookie primeiro
+    const cookieStore = cookies();
+    const cookieToken = cookieStore.get('auth-token');
+    
+    // Se não tiver no cookie, tentar pegar do header
+    const headerToken = request.headers.get('X-Auth-Token');
+    
+    const token = cookieToken?.value || headerToken;
     
     if (!token) {
       return NextResponse.json({ user: null });
@@ -75,11 +89,23 @@ export async function GET(request: NextRequest) {
       }
     });
   } catch (error) {
+    console.error('Auth verification error:', error);
     return NextResponse.json({ user: null });
   }
 }
 
 export async function DELETE() {
-  cookies().delete('auth-token');
-  return NextResponse.json({ success: true });
+  const response = NextResponse.json({ success: true });
+  
+  response.cookies.set({
+    name: 'auth-token',
+    value: '',
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 0,
+    path: '/'
+  });
+  
+  return response;
 }

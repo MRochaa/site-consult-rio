@@ -2,13 +2,14 @@ FROM node:20-alpine AS base
 
 # Install dependencies only when needed
 FROM base AS deps
+# Adiciona dependências necessárias para compilar módulos nativos
 RUN apk add --no-cache libc6-compat python3 make g++
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
+COPY package.json ./
 
-# Install dependencies including native modules
+# Instala TODAS as dependências (inclusive devDependencies para o build)
 RUN npm install --legacy-peer-deps
 
 # Rebuild the source code only when needed
@@ -32,6 +33,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Install SQLite runtime dependencies
 RUN apk add --no-cache sqlite
 
+# Cria usuário não-root
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
