@@ -3,6 +3,9 @@
   "version": "2.0.0",
   "private": true,
   "description": "Sistema interno para consultório odontológico Dr. Marcos Rocha com banco de dados",
+  "engines": {
+    "node": ">=18.18.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -21,8 +24,8 @@
     "jose": "^5.2.0",
     "lucide-react": "^0.454.0",
     "next": "15.2.4",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "react": "^19.0.3",
+    "react-dom": "^19.0.3",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "autoprefixer": "^10.4.20",
@@ -34,7 +37,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^7.6.9",
     "@types/node": "^22.0.0",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0"
+    "@types/react": "^19.0.3",
+    "@types/react-dom": "^19.0.3"
   }
 }
