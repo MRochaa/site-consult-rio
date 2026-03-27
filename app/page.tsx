@@ -10,37 +10,9 @@ import Image from "next/image"
 import { FileCheck, ClipboardList, ExternalLink } from "lucide-react"
 import { Label } from "@/components/ui/label"
 
-// AUTO-INICIALIZAÇÃO PARA DEPLOY NO COOLIFY
-const AUTO_INIT = true
-const AUTO_ADMIN = {
-  username: "admin",
-  password: "MudeEstaSenha123!",
-  name: "Administrador"
-}
-
-const hashPassword = async (password: string): Promise<string> => {
-  if (typeof window !== "undefined" && window.crypto?.subtle) {
-    const encoder = new TextEncoder()
-    const data = encoder.encode(password)
-    const hash = await window.crypto.subtle.digest("SHA-256", data)
-    return Array.from(new Uint8Array(hash))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("")
-  } else {
-    const { createHash } = await import("crypto")
-    return createHash("sha256").update(password).digest("hex")
-  }
-}
-
-const verifyPassword = async (password: string, hash: string): Promise<boolean> => {
-  const passwordHash = await hashPassword(password)
-  return passwordHash === hash
-}
-
 interface User {
   id: string
   username: string
-  password: string
   role: "admin" | "user"
   name: string
 }
@@ -50,138 +22,20 @@ interface LinkItem {
   name: string
   subtitle: string
   url: string
-  isPublic: boolean
+  is_public: boolean
   icon: string
-}
-
-const defaultLinks: LinkItem[] = [
-  {
-    id: "1",
-    name: "Ficha de Cadastro",
-    subtitle: "Anamnese",
-    url: "https://form.jotform.com/251813725963059",
-    isPublic: true,
-    icon: "FileText",
-  },
-  {
-    id: "2",
-    name: "Cadastro de novos clientes",
-    subtitle: "Preenchimento de Contrato",
-    url: "https://n8n.drmarcosrocha.com/form/9e8ed6ec-f5e9-4e6c-a42c-31e6f9473e9e",
-    isPublic: true,
-    icon: "FileCheck",
-  },
-  {
-    id: "3",
-    name: "Aquisição de contrato de serviços odontológicos",
-    subtitle: "Criação de Prontuários",
-    url: "https://form.jotform.com/251894751611057",
-    isPublic: true,
-    icon: "ClipboardList",
-  },
-  {
-    id: "4",
-    name: "Exclusivo para os dentistas",
-    subtitle: "Buscar Prontuários",
-    url: "https://n8n.drmarcosrocha.com/form/5190a59c-251d-443c-b532-9454b6e01545",
-    isPublic: false,
-    icon: "FileText",
-  },
-  {
-    id: "5",
-    name: "Buscar ficha de prontuário do cliente",
-    subtitle: "Atualizar Contrato",
-    url: "https://n8n.drmarcosrocha.com/form/80660c9b-d65c-4807-9863-8cb4c090f982",
-    isPublic: false,
-    icon: "FileCheck",
-  },
-  {
-    id: "6",
-    name: "Atualizar contrato antigo para contrato com carnê",
-    subtitle: "Atualizar contrato antigo para contrato com carnê",
-    url: "https://n8n.drmarcosrocha.com/form/80660c9b-d65c-4807-9863-8cb4c090f982",
-    isPublic: false,
-    icon: "FileCheck",
-  },
-]
-
-const MAX_ATTEMPTS = 5
-const BLOCK_DURATION = 15 * 60 * 1000
-const ATTEMPT_WINDOW = 5 * 60 * 1000
-
-interface LoginAttempt {
-  timestamp: number
-  ip: string
-  username: string
-}
-
-interface RateLimitData {
-  attempts: LoginAttempt[]
-  blockedUntil?: number
-}
-
-const getRateLimitData = (): RateLimitData => {
-  if (typeof window === "undefined") return { attempts: [] }
-  const stored = localStorage.getItem("rateLimitData")
-  return stored ? JSON.parse(stored) : { attempts: [] }
-}
-
-const setRateLimitData = (data: RateLimitData) => {
-  if (typeof window !== "undefined") {
-    localStorage.setItem("rateLimitData", JSON.stringify(data))
-  }
-}
-
-const isBlocked = (): { blocked: boolean; remainingTime?: number } => {
-  const data = getRateLimitData()
-  if (data.blockedUntil && Date.now() < data.blockedUntil) {
-    return { blocked: true, remainingTime: data.blockedUntil - Date.now() }
-  }
-  return { blocked: false }
-}
-
-const addLoginAttempt = (username: string, success: boolean) => {
-  const data = getRateLimitData()
-  const now = Date.now()
-
-  data.attempts = data.attempts.filter((attempt) => now - attempt.timestamp < ATTEMPT_WINDOW)
-
-  if (!success) {
-    data.attempts.push({
-      timestamp: now,
-      ip: "local",
-      username,
-    })
-
-    const recentAttempts = data.attempts.filter((attempt) => now - attempt.timestamp < ATTEMPT_WINDOW)
-
-    if (recentAttempts.length >= MAX_ATTEMPTS) {
-      data.blockedUntil = now + BLOCK_DURATION
-    }
-  } else {
-    data.attempts = []
-    delete data.blockedUntil
-  }
-
-  setRateLimitData(data)
-}
-
-const formatTime = (ms: number): string => {
-  const minutes = Math.ceil(ms / (1000 * 60))
-  return `${minutes} minuto${minutes !== 1 ? "s" : ""}`
 }
 
 export default function DentalOfficeSystem() {
   const [isInitialized, setIsInitialized] = useState(false)
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [users, setUsers] = useState<User[]>([])
-  const [links, setLinks] = useState<LinkItem[]>(defaultLinks)
+  const [links, setLinks] = useState<LinkItem[]>([])
   const [loginForm, setLoginForm] = useState({ username: "", password: "" })
   const [loginError, setLoginError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [currentView, setCurrentView] = useState<"home" | "admin" | "users" | "links" | "settings" | "login">("home")
-  const [siteTitle, setSiteTitle] = useState("Consultório Dr. Marcos Rocha")
-  const [logoUrl, setLogoUrl] = useState("/dental-office-logo.png")
+  const [siteTitle] = useState("Consultório Dr. Marcos Rocha")
   const [editingLink, setEditingLink] = useState<LinkItem | null>(null)
   const [linkForm, setLinkForm] = useState({
     name: "",
@@ -199,82 +53,112 @@ export default function DentalOfficeSystem() {
     confirmPassword: "",
   })
 
-  // Auto-inicialização
+  // Carregar dados iniciais
   useEffect(() => {
-    const initializeSystem = async () => {
-      if (typeof window !== "undefined") {
-        const savedUser = localStorage.getItem("currentUser")
-        const savedUsers = localStorage.getItem("users")
-        const savedLinks = localStorage.getItem("links")
-        const initialized = localStorage.getItem("systemInitialized")
-
-        if (savedUser) {
-          setCurrentUser(JSON.parse(savedUser))
-        }
-
-        if (savedUsers) {
-          setUsers(JSON.parse(savedUsers))
-        }
-
-        if (savedLinks) {
-          setLinks(JSON.parse(savedLinks))
-        } else {
-          localStorage.setItem("links", JSON.stringify(defaultLinks))
-        }
-
-        // AUTO-INICIALIZAÇÃO PARA COOLIFY
-        if (AUTO_INIT && !initialized) {
-          console.log("🚀 Sistema inicializando automaticamente...")
-          
-          const hashedPassword = await hashPassword(AUTO_ADMIN.password)
-          const adminUser: User = {
-            id: "1",
-            username: AUTO_ADMIN.username,
-            password: hashedPassword,
-            role: "admin",
-            name: AUTO_ADMIN.name,
-          }
-
-          const newUsers = [adminUser]
-          setUsers(newUsers)
-          setIsInitialized(true)
-          
-          localStorage.setItem("users", JSON.stringify(newUsers))
-          localStorage.setItem("systemInitialized", "true")
-          
-          console.log("✅ Sistema inicializado com sucesso!")
-        } else {
-          setIsInitialized(true)
-        }
-      }
-    }
-
-    initializeSystem()
+    checkAuth()
+    fetchLinks()
   }, [])
 
+  // Carregar usuários quando logado como admin
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("users", JSON.stringify(users))
+    if (currentUser?.role === 'admin') {
+      fetchUsers()
     }
-  }, [users])
+  }, [currentUser])
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("links", JSON.stringify(links))
-    }
-  }, [links])
-
-  const exportData = () => {
+  const checkAuth = async () => {
     try {
-      const data = {
-        users: users,
-        links: links,
-        siteTitle: siteTitle,
-        logoUrl: logoUrl,
-        exportDate: new Date().toISOString(),
-        version: "1.0",
+      const response = await fetch('/api/auth')
+      const data = await response.json()
+      if (data.user) {
+        setCurrentUser(data.user)
+      }
+    } catch (error) {
+      console.error('Error checking auth:', error)
+    } finally {
+      setIsInitialized(true)
+    }
+  }
+
+  const fetchLinks = async () => {
+    try {
+      const response = await fetch('/api/links')
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error)
+      setLinks(data)
+    } catch (error) {
+      console.error('Error fetching links:', error)
+    }
+  }
+
+  const fetchUsers = async () => {
+    try {
+      const response = await fetch('/api/users')
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error)
+      setUsers(data)
+    } catch (error) {
+      console.error('Error fetching users:', error)
+    }
+  }
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoginError("")
+    setIsLoading(true)
+
+    try {
+      const response = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(loginForm)
+      })
+
+      const data = await response.json()
+      
+      if (!response.ok) {
+        setLoginError(data.error || 'Erro ao fazer login')
+        return
       }
 
+      setCurrentUser(data.user)
+      setLoginForm({ username: "", password: "" })
+      setCurrentView("home")
+      
+      // Recarregar links após login
+      fetchLinks()
+      
+      // Carregar usuários se for admin
+      if (data.user.role === 'admin') {
+        fetchUsers()
+      }
+    } catch (error) {
+      setLoginError('Erro ao conectar com o servidor')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth', { method: 'DELETE' })
+      setCurrentUser(null)
+      setUsers([])
+      setCurrentView("home")
+      // Recarregar apenas links públicos
+      fetchLinks()
+    } catch (error) {
+      console.error('Error logging out:', error)
+    }
+  }
+
+  const exportData = async () => {
+    try {
+      const response = await fetch('/api/backup')
+      const data = await response.json()
+      
+      if (!response.ok) throw new Error(data.error)
+      
       const dataStr = JSON.stringify(data, null, 2)
       const dataBlob = new Blob([dataStr], { type: "application/json" })
       const url = URL.createObjectURL(dataBlob)
@@ -291,45 +175,39 @@ export default function DentalOfficeSystem() {
     }
   }
 
-  const importData = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const importData = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
     const reader = new FileReader()
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const data = JSON.parse(e.target?.result as string)
 
-        if (!data.users || !Array.isArray(data.users)) {
-          alert("Arquivo de backup inválido: dados de usuários não encontrados")
-          return
-        }
+        if (confirm(
+          `Importar backup de ${data.exportDate ? new Date(data.exportDate).toLocaleDateString() : "data desconhecida"}? Isso substituirá todos os dados atuais.`
+        )) {
+          const response = await fetch('/api/backup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+          })
 
-        if (!data.links || !Array.isArray(data.links)) {
-          alert("Arquivo de backup inválido: dados de links não encontrados")
-          return
-        }
-
-        if (
-          confirm(
-            `Importar backup de ${data.exportDate ? new Date(data.exportDate).toLocaleDateString() : "data desconhecida"}? Isso substituirá todos os dados atuais.`,
-          )
-        ) {
-          setUsers(data.users)
-          setLinks(data.links)
-          setSiteTitle(data.siteTitle || "Sistema Interno - Dr. Marcos Rocha")
-          setLogoUrl(data.logoUrl || "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/imagem_2025-08-29_174713093-msrQ9bJuiSdiyhTAjU8jANzDbENqSc.png")
-
-          localStorage.setItem("users", JSON.stringify(data.users))
-          localStorage.setItem("links", JSON.stringify(data.links))
-          localStorage.setItem("siteTitle", data.siteTitle || "Sistema Interno - Dr. Marcos Rocha")
-          localStorage.setItem("logoUrl", data.logoUrl || "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/imagem_2025-08-29_174713093-msrQ9bJuiSdiyhTAjU8jANzDbENqSc.png")
+          const result = await response.json()
+          
+          if (!response.ok) throw new Error(result.error)
 
           alert("Backup importado com sucesso!")
           setCurrentView("home")
+          
+          // Recarregar dados
+          fetchLinks()
+          if (currentUser?.role === 'admin') {
+            fetchUsers()
+          }
         }
       } catch (error) {
-        alert("Erro ao importar backup: arquivo inválido")
+        alert("Erro ao importar backup: " + (error as Error).message)
       }
     }
 
@@ -341,71 +219,29 @@ export default function DentalOfficeSystem() {
     event.target.value = ""
   }
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleAddLink = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoginError("")
+    try {
+      const response = await fetch('/api/links', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: linkForm.name,
+          subtitle: linkForm.subtitle,
+          url: linkForm.url,
+          is_public: linkForm.isPublic,
+          icon: linkForm.icon
+        })
+      })
 
-    const blockStatus = isBlocked()
-    if (blockStatus.blocked) {
-      const remainingTime = formatTime(blockStatus.remainingTime!)
-      setLoginError(`Muitas tentativas falhadas. Tente novamente em ${remainingTime}.`)
-      return
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error)
+
+      setLinkForm({ name: "", subtitle: "", url: "", isPublic: true, icon: "FileText" })
+      fetchLinks()
+    } catch (error) {
+      alert("Erro ao adicionar link: " + (error as Error).message)
     }
-
-    setIsLoading(true)
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
-    for (const user of users) {
-      if (user.username === loginForm.username) {
-        const isValid = await verifyPassword(loginForm.password, user.password)
-        if (isValid) {
-          addLoginAttempt(loginForm.username, true)
-          setCurrentUser(user)
-          localStorage.setItem("currentUser", JSON.stringify(user))
-          setLoginForm({ username: "", password: "" })
-          setIsLoading(false)
-          setCurrentView("home")
-          return
-        }
-      }
-    }
-
-    addLoginAttempt(loginForm.username, false)
-    setLoginError("Credenciais inválidas")
-    setIsLoading(false)
-  }
-
-  const handleLogout = () => {
-    setCurrentUser(null)
-    localStorage.removeItem("currentUser")
-    setCurrentView("home")
-  }
-
-  const getIconComponent = (iconName: string) => {
-    switch (iconName) {
-      case "FileText":
-        return <FileText className="h-5 w-5" />
-      case "FileCheck":
-        return <FileCheck className="h-5 w-5" />
-      case "ClipboardList":
-        return <ClipboardList className="h-5 w-5" />
-      default:
-        return <FileText className="h-5 w-5" />
-    }
-  }
-
-  const handleAddLink = (e: React.FormEvent) => {
-    e.preventDefault()
-    const newLink: LinkItem = {
-      id: Date.now().toString(),
-      name: linkForm.name,
-      subtitle: linkForm.subtitle,
-      url: linkForm.url,
-      isPublic: linkForm.isPublic,
-      icon: linkForm.icon,
-    }
-    setLinks([...links, newLink])
-    setLinkForm({ name: "", subtitle: "", url: "", isPublic: true, icon: "FileText" })
   }
 
   const handleEditLink = (link: LinkItem) => {
@@ -414,36 +250,54 @@ export default function DentalOfficeSystem() {
       name: link.name,
       subtitle: link.subtitle,
       url: link.url,
-      isPublic: link.isPublic,
+      isPublic: link.is_public,
       icon: link.icon,
     })
   }
 
-  const handleUpdateLink = (e: React.FormEvent) => {
+  const handleUpdateLink = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editingLink) return
 
-    setLinks(
-      links.map((link) =>
-        link.id === editingLink.id
-          ? {
-              ...link,
-              name: linkForm.name,
-              subtitle: linkForm.subtitle,
-              url: linkForm.url,
-              isPublic: linkForm.isPublic,
-              icon: linkForm.icon,
-            }
-          : link,
-      ),
-    )
-    setEditingLink(null)
-    setLinkForm({ name: "", subtitle: "", url: "", isPublic: true, icon: "FileText" })
+    try {
+      const response = await fetch('/api/links', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editingLink.id,
+          name: linkForm.name,
+          subtitle: linkForm.subtitle,
+          url: linkForm.url,
+          is_public: linkForm.isPublic,
+          icon: linkForm.icon
+        })
+      })
+
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error)
+
+      setEditingLink(null)
+      setLinkForm({ name: "", subtitle: "", url: "", isPublic: true, icon: "FileText" })
+      fetchLinks()
+    } catch (error) {
+      alert("Erro ao atualizar link: " + (error as Error).message)
+    }
   }
 
-  const handleDeleteLink = (linkId: string) => {
+  const handleDeleteLink = async (linkId: string) => {
     if (confirm("Tem certeza que deseja excluir este link?")) {
-      setLinks(links.filter((link) => link.id !== linkId))
+      try {
+        const response = await fetch(`/api/links?id=${linkId}`, {
+          method: 'DELETE'
+        })
+
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error)
+
+        fetchLinks()
+      } catch (error) {
+        alert("Erro ao excluir link: " + (error as Error).message)
+      }
     }
   }
 
@@ -460,26 +314,27 @@ export default function DentalOfficeSystem() {
       return
     }
 
-    if (users.some((u) => u.username === userForm.username)) {
-      alert("Nome de usuário já existe")
-      return
+    try {
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: userForm.username,
+          password: userForm.password,
+          name: userForm.name,
+          role: userForm.role
+        })
+      })
+
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error)
+
+      setUserForm({ username: "", password: "", confirmPassword: "", role: "user", name: "" })
+      setCurrentView("users")
+      fetchUsers()
+    } catch (error) {
+      alert("Erro ao criar usuário: " + (error as Error).message)
     }
-
-    const hashedPassword = await hashPassword(userForm.password)
-
-    const newUser: User = {
-      id: Date.now().toString(),
-      username: userForm.username,
-      password: hashedPassword,
-      role: userForm.role as "admin" | "user",
-      name: userForm.name,
-    }
-
-    const updatedUsers = [...users, newUser]
-    setUsers(updatedUsers)
-
-    setUserForm({ username: "", password: "", confirmPassword: "", role: "user", name: "" })
-    setCurrentView("users")
   }
 
   const handleUpdateUser = async (e: React.FormEvent) => {
@@ -491,38 +346,56 @@ export default function DentalOfficeSystem() {
     }
 
     if (editingUser) {
-      const updatedPassword = userForm.password ? await hashPassword(userForm.password) : editingUser.password
+      try {
+        const updates: any = {
+          id: editingUser.id,
+          username: userForm.username,
+          name: userForm.name,
+          role: userForm.role
+        }
 
-      const updatedUser: User = {
-        ...editingUser,
-        username: userForm.username,
-        password: updatedPassword,
-        role: userForm.role as "admin" | "user",
-        name: userForm.name,
+        if (userForm.password) {
+          updates.password = userForm.password
+        }
+
+        const response = await fetch('/api/users', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates)
+        })
+
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error)
+
+        setEditingUser(null)
+        setUserForm({ username: "", password: "", confirmPassword: "", role: "user", name: "" })
+        setCurrentView("users")
+        fetchUsers()
+      } catch (error) {
+        alert("Erro ao atualizar usuário: " + (error as Error).message)
       }
-
-      const updatedUsers = users.map((u) => (u.id === editingUser.id ? updatedUser : u))
-      setUsers(updatedUsers)
-
-      if (currentUser?.id === editingUser.id) {
-        setCurrentUser(updatedUser)
-        localStorage.setItem("currentUser", JSON.stringify(updatedUser))
-      }
-
-      setEditingUser(null)
-      setUserForm({ username: "", password: "", confirmPassword: "", role: "user", name: "" })
-      setCurrentView("users")
     }
   }
 
-  const handleDeleteUser = (userId: string) => {
+  const handleDeleteUser = async (userId: string) => {
     if (currentUser && currentUser.id === userId) {
       alert("Você não pode excluir sua própria conta!")
       return
     }
 
     if (confirm("Tem certeza que deseja excluir este usuário?")) {
-      setUsers(users.filter((user) => user.id !== userId))
+      try {
+        const response = await fetch(`/api/users?id=${userId}`, {
+          method: 'DELETE'
+        })
+
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error)
+
+        fetchUsers()
+      } catch (error) {
+        alert("Erro ao excluir usuário: " + (error as Error).message)
+      }
     }
   }
 
@@ -542,8 +415,30 @@ export default function DentalOfficeSystem() {
     setUserForm({ username: "", password: "", name: "", role: "user", confirmPassword: "" })
   }
 
-  const publicLinks = links.filter((link) => link.isPublic)
-  const privateLinks = links.filter((link) => !link.isPublic)
+  const getIconComponent = (iconName: string) => {
+    switch (iconName) {
+      case "FileText":
+        return <FileText className="h-5 w-5" />
+      case "FileCheck":
+        return <FileCheck className="h-5 w-5" />
+      case "ClipboardList":
+        return <ClipboardList className="h-5 w-5" />
+      default:
+        return <FileText className="h-5 w-5" />
+    }
+  }
+
+  const publicLinks = links.filter((link) => link.is_public)
+  const privateLinks = links.filter((link) => !link.is_public)
+
+  // Loading state
+  if (!isInitialized) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#1b2370] to-[#0f1a5c] flex items-center justify-center">
+        <div className="text-white">Carregando...</div>
+      </div>
+    )
+  }
 
   // Tela de Login
   if (currentView === "login" && !currentUser) {
@@ -698,15 +593,16 @@ export default function DentalOfficeSystem() {
                 Backup e Restauração
               </h3>
 
-              <div className="bg-amber-500/20 border border-amber-500/30 rounded-lg p-4 mb-4">
+              <div className="bg-green-500/20 border border-green-500/30 rounded-lg p-4 mb-4">
                 <div className="flex items-start space-x-2">
-                  <AlertTriangle className="h-5 w-5 text-amber-400 mt-0.5 flex-shrink-0" />
-                  <div className="text-sm text-amber-100">
-                    <p className="font-medium mb-1">Importante sobre os dados:</p>
-                    <ul className="space-y-1 text-amber-200/90">
-                      <li>• Os dados são salvos localmente no navegador</li>
-                      <li>• Podem ser perdidos ao limpar cache ou trocar de dispositivo</li>
-                      <li>• Faça backup regularmente para não perder informações</li>
+                  <AlertTriangle className="h-5 w-5 text-green-400 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-green-100">
+                    <p className="font-medium mb-1">✅ Dados seguros no servidor:</p>
+                    <ul className="space-y-1 text-green-200/90">
+                      <li>• Os dados agora são salvos no banco de dados</li>
+                      <li>• Sincronizados entre todos os usuários</li>
+                      <li>• Persistentes mesmo ao limpar cache do navegador</li>
+                      <li>• Faça backup regularmente para segurança extra</li>
                     </ul>
                   </div>
                 </div>

@@ -25,3 +25,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Database
+/data/
+*.db
+*.db-shm
+*.db-wal
+
+# Environment
+.env
+.env.local
+.env.production
