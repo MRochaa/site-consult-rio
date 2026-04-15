@@ -1,97 +1,79 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllLinks, createLink, updateLink, deleteLink } from '@/lib/db';
-import { jwtVerify } from 'jose';
-import { cookies } from 'next/headers';
+import { verifyAuth, requireAdmin } from '@/lib/auth';
+import {
+  validateCreateLink,
+  validateUpdateLink,
+  ValidationError,
+} from '@/lib/validation';
 
-const secret = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'your-secret-key-change-this-in-production'
-);
-
-async function verifyAuth(request: NextRequest) {
-  const token = cookies().get('auth-token')?.value;
-  
-  if (!token) {
-    return null;
+function badRequest(err: unknown) {
+  if (err instanceof ValidationError) {
+    return NextResponse.json({ error: err.message }, { status: 400 });
   }
-  
-  try {
-    const { payload } = await jwtVerify(token, secret);
-    return payload;
-  } catch {
-    return null;
-  }
+  return null;
 }
 
 export async function GET(request: NextRequest) {
   try {
     const auth = await verifyAuth(request);
     const links = getAllLinks();
-    
-    // If not authenticated, return only public links
+
     if (!auth) {
-      return NextResponse.json(links.filter(link => link.is_public));
+      return NextResponse.json(links.filter((link) => link.is_public));
     }
-    
-    // If authenticated, return all links
+
     return NextResponse.json(links);
   } catch (error) {
     console.error('Error fetching links:', error);
-    return NextResponse.json(
-      { error: 'Erro ao buscar links' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro ao buscar links' }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await verifyAuth(request);
-  
-  if (!auth || auth.role !== 'admin') {
-    return NextResponse.json(
-      { error: 'Não autorizado' },
-      { status: 401 }
-    );
+  const auth = await requireAdmin(request);
+  if (!auth) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
   }
-  
+
   try {
-    const body = await request.json();
-    const { name, subtitle, url, is_public, icon } = body;
-    
-    const link = createLink({ name, subtitle, url, is_public, icon });
-    
+    const body = await request.json().catch(() => null);
+    let input;
+    try {
+      input = validateCreateLink(body);
+    } catch (err) {
+      const r = badRequest(err);
+      if (r) return r;
+      throw err;
+    }
+
+    const link = createLink(input);
     return NextResponse.json(link);
   } catch (error) {
     console.error('Error creating link:', error);
-    return NextResponse.json(
-      { error: 'Erro ao criar link' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro ao criar link' }, { status: 500 });
   }
 }
 
 export async function PUT(request: NextRequest) {
-  const auth = await verifyAuth(request);
-  
-  if (!auth || auth.role !== 'admin') {
-    return NextResponse.json(
-      { error: 'Não autorizado' },
-      { status: 401 }
-    );
+  const auth = await requireAdmin(request);
+  if (!auth) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
   }
-  
+
   try {
-    const body = await request.json();
-    const { id, name, subtitle, url, is_public, icon } = body;
-    
-    const updates: any = {};
-    if (name !== undefined) updates.name = name;
-    if (subtitle !== undefined) updates.subtitle = subtitle;
-    if (url !== undefined) updates.url = url;
-    if (is_public !== undefined) updates.is_public = is_public;
-    if (icon !== undefined) updates.icon = icon;
-    
+    const body = await request.json().catch(() => null);
+    let input;
+    try {
+      input = validateUpdateLink(body);
+    } catch (err) {
+      const r = badRequest(err);
+      if (r) return r;
+      throw err;
+    }
+
+    const { id, ...updates } = input;
     updateLink(id, updates);
-    
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error updating link:', error);
@@ -103,34 +85,23 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const auth = await verifyAuth(request);
-  
-  if (!auth || auth.role !== 'admin') {
-    return NextResponse.json(
-      { error: 'Não autorizado' },
-      { status: 401 }
-    );
+  const auth = await requireAdmin(request);
+  if (!auth) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
   }
-  
+
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-    
-    if (!id) {
-      return NextResponse.json(
-        { error: 'ID não fornecido' },
-        { status: 400 }
-      );
+
+    if (!id || id.length > 64) {
+      return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
     }
-    
+
     deleteLink(id);
-    
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting link:', error);
-    return NextResponse.json(
-      { error: 'Erro ao excluir link' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro ao excluir link' }, { status: 500 });
   }
 }

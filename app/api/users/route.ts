@@ -1,37 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllUsers, createUser, updateUser, deleteUser, getUserByUsername } from '@/lib/db';
-import { jwtVerify } from 'jose';
-import { cookies } from 'next/headers';
+import {
+  getAllUsers,
+  createUser,
+  updateUser,
+  deleteUser,
+  getUserByUsername,
+} from '@/lib/db';
+import { verifyAuth, requireAdmin } from '@/lib/auth';
+import {
+  validateCreateUser,
+  validateUpdateUser,
+  ValidationError,
+} from '@/lib/validation';
 
-const secret = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'your-secret-key-change-this-in-production'
-);
-
-async function verifyAuth(request: NextRequest) {
-  const token = cookies().get('auth-token')?.value;
-  
-  if (!token) {
-    return null;
+function badRequest(err: unknown) {
+  if (err instanceof ValidationError) {
+    return NextResponse.json({ error: err.message }, { status: 400 });
   }
-  
-  try {
-    const { payload } = await jwtVerify(token, secret);
-    return payload;
-  } catch {
-    return null;
-  }
+  return null;
 }
 
 export async function GET(request: NextRequest) {
-  const auth = await verifyAuth(request);
-  
-  if (!auth || auth.role !== 'admin') {
-    return NextResponse.json(
-      { error: 'Não autorizado' },
-      { status: 401 }
-    );
+  const auth = await requireAdmin(request);
+  if (!auth) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
   }
-  
+
   try {
     const users = getAllUsers();
     // Remove passwords from response
@@ -47,71 +41,74 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await verifyAuth(request);
-  
-  if (!auth || auth.role !== 'admin') {
-    return NextResponse.json(
-      { error: 'Não autorizado' },
-      { status: 401 }
-    );
+  const auth = await requireAdmin(request);
+  if (!auth) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
   }
-  
+
   try {
-    const body = await request.json();
-    const { username, password, name, role } = body;
-    
-    // Check if username already exists
-    const existingUser = getUserByUsername(username);
-    if (existingUser) {
+    const body = await request.json().catch(() => null);
+    let input;
+    try {
+      input = validateCreateUser(body);
+    } catch (err) {
+      const r = badRequest(err);
+      if (r) return r;
+      throw err;
+    }
+
+    if (getUserByUsername(input.username)) {
       return NextResponse.json(
         { error: 'Nome de usuário já existe' },
         { status: 400 }
       );
     }
-    
-    const user = createUser({ username, password, name, role });
+
+    const user = createUser(input);
     const { password: _, ...safeUser } = user;
-    
     return NextResponse.json(safeUser);
   } catch (error) {
     console.error('Error creating user:', error);
-    return NextResponse.json(
-      { error: 'Erro ao criar usuário' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro ao criar usuário' }, { status: 500 });
   }
 }
 
 export async function PUT(request: NextRequest) {
   const auth = await verifyAuth(request);
-  
   if (!auth) {
-    return NextResponse.json(
-      { error: 'Não autorizado' },
-      { status: 401 }
-    );
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
   }
-  
+
   try {
-    const body = await request.json();
-    const { id, username, password, name, role } = body;
-    
-    // Users can only update their own profile unless they're admin
-    if (auth.role !== 'admin' && auth.id !== id) {
-      return NextResponse.json(
-        { error: 'Não autorizado' },
-        { status: 403 }
-      );
+    const body = await request.json().catch(() => null);
+    let input;
+    try {
+      input = validateUpdateUser(body);
+    } catch (err) {
+      const r = badRequest(err);
+      if (r) return r;
+      throw err;
     }
-    
-    const updates: any = {};
-    if (username) updates.username = username;
-    if (password) updates.password = password;
-    if (name) updates.name = name;
-    if (role && auth.role === 'admin') updates.role = role;
-    
-    updateUser(id, updates);
-    
+
+    // Users can only update their own profile unless they're admin.
+    if (auth.role !== 'admin' && auth.id !== input.id) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 403 });
+    }
+
+    const updates: {
+      username?: string;
+      password?: string;
+      name?: string;
+      role?: 'admin' | 'user';
+    } = {};
+    if (input.username) updates.username = input.username;
+    if (input.password) updates.password = input.password;
+    if (input.name) updates.name = input.name;
+    // Only admins may change role — silently drop it from non-admin callers.
+    if (input.role && auth.role === 'admin') updates.role = input.role;
+
+    updateUser(input.id, updates);
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error updating user:', error);
@@ -123,36 +120,28 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const auth = await verifyAuth(request);
-  
-  if (!auth || auth.role !== 'admin') {
-    return NextResponse.json(
-      { error: 'Não autorizado' },
-      { status: 401 }
-    );
+  const auth = await requireAdmin(request);
+  if (!auth) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
   }
-  
+
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-    
-    if (!id) {
-      return NextResponse.json(
-        { error: 'ID não fornecido' },
-        { status: 400 }
-      );
+
+    if (!id || id.length > 64) {
+      return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
     }
-    
-    // Prevent deleting yourself
+
+    // Prevent deleting yourself.
     if (auth.id === id) {
       return NextResponse.json(
         { error: 'Você não pode excluir sua própria conta' },
         { status: 400 }
       );
     }
-    
+
     deleteUser(id);
-    
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting user:', error);

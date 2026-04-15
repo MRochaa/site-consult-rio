@@ -1,82 +1,112 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserByUsername, verifyPassword } from '@/lib/db';
-import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
-
-const secret = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'your-secret-key-change-this-in-production'
-);
+import {
+  signAuthToken,
+  verifyAuth,
+  rateLimit,
+  clientIp,
+} from '@/lib/auth';
+import { validateLogin, ValidationError } from '@/lib/validation';
 
 export async function POST(request: NextRequest) {
   try {
-    const { username, password } = await request.json();
-    
-    const user = getUserByUsername(username);
-    
-    if (!user || !verifyPassword(password, user.password)) {
+    // Rate limit per IP AND per username to slow down brute force without
+    // letting a single attacker lock a victim out from their own IP-less
+    // network (we combine both keys into the bucket name).
+    const ip = clientIp(request);
+
+    const ipLimit = rateLimit(`login:ip:${ip}`, {
+      windowMs: 60_000,
+      max: 10,
+      blockMs: 5 * 60_000,
+    });
+    if (!ipLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Muitas tentativas. Tente novamente mais tarde.' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(ipLimit.retryAfterSeconds) },
+        }
+      );
+    }
+
+    const body = await request.json().catch(() => null);
+    let input;
+    try {
+      input = validateLogin(body);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return NextResponse.json({ error: err.message }, { status: 400 });
+      }
+      throw err;
+    }
+
+    const userLimit = rateLimit(`login:user:${input.username.toLowerCase()}`, {
+      windowMs: 60_000,
+      max: 5,
+      blockMs: 5 * 60_000,
+    });
+    if (!userLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Muitas tentativas. Tente novamente mais tarde.' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(userLimit.retryAfterSeconds) },
+        }
+      );
+    }
+
+    const user = getUserByUsername(input.username);
+
+    if (!user || !verifyPassword(input.password, user.password)) {
       return NextResponse.json(
         { error: 'Credenciais inválidas' },
         { status: 401 }
       );
     }
-    
-    // Create JWT token
-    const token = await new SignJWT({ 
+
+    const token = await signAuthToken({
       id: user.id,
       username: user.username,
       role: user.role,
-      name: user.name 
-    })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setExpirationTime('24h')
-      .sign(secret);
-    
-    // Set cookie
+      name: user.name,
+    });
+
     cookies().set('auth-token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: 60 * 60 * 24 // 24 hours
+      path: '/',
+      maxAge: 60 * 60 * 24, // 24 hours
     });
-    
+
     return NextResponse.json({
       user: {
         id: user.id,
         username: user.username,
         name: user.name,
-        role: user.role
-      }
+        role: user.role,
+      },
     });
   } catch (error) {
     console.error('Login error:', error);
-    return NextResponse.json(
-      { error: 'Erro ao fazer login' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro ao fazer login' }, { status: 500 });
   }
 }
 
 export async function GET(request: NextRequest) {
-  try {
-    const token = cookies().get('auth-token')?.value;
-    
-    if (!token) {
-      return NextResponse.json({ user: null });
-    }
-    
-    const { payload } = await jwtVerify(token, secret);
-    
-    return NextResponse.json({
-      user: {
-        id: payload.id as string,
-        username: payload.username as string,
-        name: payload.name as string,
-        role: payload.role as string
-      }
-    });
-  } catch (error) {
-    return NextResponse.json({ user: null });
-  }
+  const auth = await verifyAuth(request);
+  if (!auth) return NextResponse.json({ user: null });
+
+  return NextResponse.json({
+    user: {
+      id: auth.id,
+      username: auth.username,
+      name: auth.name,
+      role: auth.role,
+    },
+  });
 }
 
 export async function DELETE() {
