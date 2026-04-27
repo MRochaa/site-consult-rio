@@ -20,6 +20,17 @@ function loadSecret(): Uint8Array {
     return new TextEncoder().encode(raw);
   }
 
+  // `next build` sets NEXT_PHASE = 'phase-production-build' and also forces
+  // NODE_ENV = 'production'. During the "Collecting page data" step it imports
+  // every API route, which triggers this module — but no real secret is needed
+  // at build time (no requests are served). Generate an ephemeral one so the
+  // build completes; the real check happens at runtime.
+  if (process.env.NEXT_PHASE === 'phase-production-build') {
+    const random = new Uint8Array(64);
+    crypto.getRandomValues(random);
+    return random;
+  }
+
   if (process.env.NODE_ENV === 'production') {
     // Hard fail — never run production with a weak/missing secret.
     throw new Error(
