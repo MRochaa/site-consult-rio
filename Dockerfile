@@ -1,35 +1,33 @@
 FROM node:20-alpine AS base
 
-# Install dependencies only when needed
-FROM base AS deps
+# ---------- build stage (deps + compile in one stage) ----------
+# Merged deps and builder into a single stage because Coolify injects
+# ARG declarations into every FROM stage, which breaks BuildKit's
+# COPY --from=<named-stage> resolution.
+FROM base AS builder
+
+# Native build tools for better-sqlite3
 RUN apk add --no-cache libc6-compat python3 make g++
 WORKDIR /app
 
-# Copy package files
+# Install dependencies
 COPY package*.json ./
-
-# Install dependencies including native modules
 RUN npm install --legacy-peer-deps
 
-# Rebuild the source code only when needed
-FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+# Copy source and build
 COPY . .
-
-# Initialize database and build Next.js
 RUN npm run db:init
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-# Production image
+# ---------- production stage ----------
 FROM base AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Install SQLite runtime dependencies
+# SQLite runtime dependencies
 RUN apk add --no-cache sqlite
 
 RUN addgroup --system --gid 1001 nodejs
@@ -55,7 +53,7 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Create volume for persistent database
+# Persistent database volume
 VOLUME ["/app/data"]
 
 CMD ["node", "server.js"]
