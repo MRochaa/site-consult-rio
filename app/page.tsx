@@ -1189,7 +1189,7 @@ export default function DentalOfficeSystem() {
                     key={link.id}
                     variant="outline"
                     className="w-full justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white h-auto py-3"
-                    onClick={() => window.open(link.url, "_blank")}
+                    onClick={() => window.open(link.url, "_blank", "noopener,noreferrer")}
                   >
                     <div className="flex items-center w-full">
                       {getIconComponent(link.icon)}
@@ -1222,7 +1222,7 @@ export default function DentalOfficeSystem() {
                       key={link.id}
                       variant="outline"
                       className="w-full justify-start backdrop-blur-sm bg-white/5 border-white/20 hover:bg-white/10 text-white h-auto py-3"
-                      onClick={() => window.open(link.url, "_blank")}
+                      onClick={() => window.open(link.url, "_blank", "noopener,noreferrer")}
                     >
                       <div className="flex items-center w-full">
                         {getIconComponent(link.icon)}

@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 
 // Interface definitions
@@ -23,22 +24,41 @@ export interface Link {
   created_at?: string;
 }
 
+/**
+ * bcrypt work factor. 12 is the modern default; raise further if login
+ * latency is acceptable on the target hardware.
+ */
+const BCRYPT_ROUNDS = 12;
+
 // Ensure data directory exists
 const dataDir = path.join(process.cwd(), 'data');
 if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir);
+  fs.mkdirSync(dataDir, { recursive: true });
 }
 
 // Create database connection
 let db: Database.Database | null = null;
 
+function newId(): string {
+  // crypto.randomUUID() is unpredictable and collision-resistant, unlike the
+  // previous Date.now() scheme which allowed trivial enumeration of users
+  // and links via the API.
+  return crypto.randomUUID();
+}
+
+function strongRandomPassword(): string {
+  // 24 url-safe bytes → ~32 chars. Strong enough that leaking it via logs
+  // once is still fine, and users are expected to change it immediately.
+  return crypto.randomBytes(24).toString('base64url');
+}
+
 export function getDb(): Database.Database {
   if (!db) {
     db = new Database(path.join(dataDir, 'dental-office.db'));
-    
+
     // Enable WAL mode for better concurrency
     db.pragma('journal_mode = WAL');
-    
+
     // Create tables if they don't exist
     db.exec(`
       CREATE TABLE IF NOT EXISTS users (
@@ -65,44 +85,94 @@ export function getDb(): Database.Database {
         value TEXT NOT NULL
       );
     `);
-    
-    // Initialize with admin user if no users exist
-    const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
-    if (userCount.count === 0) {
-      const adminPassword = bcrypt.hashSync('MudeEstaSenha123!', 10);
-      db.prepare(`
-        INSERT INTO users (id, username, password, name, role)
-        VALUES (?, ?, ?, ?, ?)
-      `).run('1', 'admin', adminPassword, 'Administrador', 'admin');
-    }
+
+    seedInitialAdmin(db);
   }
-  
+
   return db;
+}
+
+/**
+ * Seed the initial admin user on first boot.
+ *
+ * - If INITIAL_ADMIN_PASSWORD is set, use it (operator explicitly chose it).
+ * - Otherwise, generate a strong random password and log it ONCE so the
+ *   operator can capture it from the container logs. The previous code
+ *   shipped a hard-coded public password ("MudeEstaSenha123!") which meant
+ *   any fresh database was trivially compromised.
+ *
+ * The existence check + insert must be atomic — otherwise two concurrent
+ * workers could both observe count=0 and race to create admin. SQLite gives
+ * us a UNIQUE constraint on username, so we wrap it in a transaction and
+ * tolerate the unique violation.
+ */
+function seedInitialAdmin(database: Database.Database): void {
+  const tx = database.transaction(() => {
+    const existing = database
+      .prepare("SELECT id FROM users WHERE username = 'admin'")
+      .get();
+    if (existing) return;
+
+    const envPassword = process.env.INITIAL_ADMIN_PASSWORD;
+    const password =
+      envPassword && envPassword.length >= 8 ? envPassword : strongRandomPassword();
+    const hashed = bcrypt.hashSync(password, BCRYPT_ROUNDS);
+
+    database
+      .prepare(
+        `INSERT INTO users (id, username, password, name, role)
+         VALUES (?, ?, ?, ?, ?)`
+      )
+      .run(newId(), 'admin', hashed, 'Administrador', 'admin');
+
+    if (!envPassword) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '\n================================================================\n' +
+          '  Initial admin account created with a RANDOM password.\n' +
+          '  Username: admin\n' +
+          `  Password: ${password}\n` +
+          '  Change it immediately after first login.\n' +
+          '================================================================\n'
+      );
+    }
+  });
+
+  try {
+    tx();
+  } catch (err: any) {
+    // UNIQUE constraint: another worker won the race — that's fine.
+    if (!/UNIQUE/i.test(String(err?.message))) throw err;
+  }
 }
 
 // User functions
 export function getAllUsers(): User[] {
   const db = getDb();
-  const rows = db.prepare('SELECT * FROM users ORDER BY created_at DESC').all() as User[];
+  const rows = db
+    .prepare('SELECT * FROM users ORDER BY created_at DESC')
+    .all() as User[];
   return rows;
 }
 
 export function getUserByUsername(username: string): User | null {
   const db = getDb();
-  const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as User | undefined;
+  const user = db
+    .prepare('SELECT * FROM users WHERE username = ?')
+    .get(username) as User | undefined;
   return user || null;
 }
 
 export function createUser(user: Omit<User, 'id' | 'created_at'>): User {
   const db = getDb();
-  const id = Date.now().toString();
-  const hashedPassword = bcrypt.hashSync(user.password, 10);
-  
-  db.prepare(`
-    INSERT INTO users (id, username, password, name, role)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(id, user.username, hashedPassword, user.name, user.role);
-  
+  const id = newId();
+  const hashedPassword = bcrypt.hashSync(user.password, BCRYPT_ROUNDS);
+
+  db.prepare(
+    `INSERT INTO users (id, username, password, name, role)
+     VALUES (?, ?, ?, ?, ?)`
+  ).run(id, user.username, hashedPassword, user.name, user.role);
+
   return { id, ...user, password: hashedPassword };
 }
 
@@ -110,14 +180,14 @@ export function updateUser(id: string, updates: Partial<Omit<User, 'id'>>): void
   const db = getDb();
   const updateFields: string[] = [];
   const values: any[] = [];
-  
+
   if (updates.username) {
     updateFields.push('username = ?');
     values.push(updates.username);
   }
   if (updates.password) {
     updateFields.push('password = ?');
-    values.push(bcrypt.hashSync(updates.password, 10));
+    values.push(bcrypt.hashSync(updates.password, BCRYPT_ROUNDS));
   }
   if (updates.name) {
     updateFields.push('name = ?');
@@ -127,10 +197,12 @@ export function updateUser(id: string, updates: Partial<Omit<User, 'id'>>): void
     updateFields.push('role = ?');
     values.push(updates.role);
   }
-  
+
   if (updateFields.length > 0) {
     values.push(id);
-    db.prepare(`UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`).run(...values);
+    db.prepare(`UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`).run(
+      ...values
+    );
   }
 }
 
@@ -146,22 +218,24 @@ export function verifyPassword(password: string, hash: string): boolean {
 // Link functions
 export function getAllLinks(): Link[] {
   const db = getDb();
-  const rows = db.prepare('SELECT * FROM links ORDER BY created_at DESC').all() as Link[];
-  return rows.map(link => ({
+  const rows = db
+    .prepare('SELECT * FROM links ORDER BY created_at DESC')
+    .all() as Link[];
+  return rows.map((link) => ({
     ...link,
-    is_public: link.is_public === 1
+    is_public: link.is_public === 1,
   }));
 }
 
 export function createLink(link: Omit<Link, 'id' | 'created_at'>): Link {
   const db = getDb();
-  const id = Date.now().toString();
-  
-  db.prepare(`
-    INSERT INTO links (id, name, subtitle, url, is_public, icon)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(id, link.name, link.subtitle, link.url, link.is_public ? 1 : 0, link.icon);
-  
+  const id = newId();
+
+  db.prepare(
+    `INSERT INTO links (id, name, subtitle, url, is_public, icon)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(id, link.name, link.subtitle, link.url, link.is_public ? 1 : 0, link.icon);
+
   return { id, ...link };
 }
 
@@ -169,7 +243,7 @@ export function updateLink(id: string, updates: Partial<Omit<Link, 'id'>>): void
   const db = getDb();
   const updateFields: string[] = [];
   const values: any[] = [];
-  
+
   if (updates.name !== undefined) {
     updateFields.push('name = ?');
     values.push(updates.name);
@@ -190,10 +264,12 @@ export function updateLink(id: string, updates: Partial<Omit<Link, 'id'>>): void
     updateFields.push('icon = ?');
     values.push(updates.icon);
   }
-  
+
   if (updateFields.length > 0) {
     values.push(id);
-    db.prepare(`UPDATE links SET ${updateFields.join(', ')} WHERE id = ?`).run(...values);
+    db.prepare(`UPDATE links SET ${updateFields.join(', ')} WHERE id = ?`).run(
+      ...values
+    );
   }
 }
 
@@ -205,16 +281,18 @@ export function deleteLink(id: string): void {
 // Settings functions
 export function getSetting(key: string): string | null {
   const db = getDb();
-  const result = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined;
+  const result = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as
+    | { value: string }
+    | undefined;
   return result?.value || null;
 }
 
 export function setSetting(key: string, value: string): void {
   const db = getDb();
-  db.prepare(`
-    INSERT INTO settings (key, value) VALUES (?, ?)
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value
-  `).run(key, value);
+  db.prepare(
+    `INSERT INTO settings (key, value) VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+  ).run(key, value);
 }
 
 // Export/Import functions
@@ -223,61 +301,109 @@ export function exportData() {
   const users = getAllUsers();
   const links = getAllLinks();
   const settings: Record<string, string> = {};
-  
-  const allSettings = db.prepare('SELECT key, value FROM settings').all() as Array<{ key: string; value: string }>;
-  allSettings.forEach(s => { settings[s.key] = s.value; });
-  
+
+  const allSettings = db
+    .prepare('SELECT key, value FROM settings')
+    .all() as Array<{ key: string; value: string }>;
+  allSettings.forEach((s) => {
+    settings[s.key] = s.value;
+  });
+
   return {
-    users: users.map(u => ({ ...u, password: '***' })), // Hide passwords in export
+    users: users.map((u) => ({ ...u, password: '***' })), // Hide passwords in export
     links,
     settings,
     exportDate: new Date().toISOString(),
-    version: '2.0'
+    version: '2.0',
   };
 }
 
-export function importData(data: any) {
+/**
+ * Import a previously exported backup.
+ *
+ * Passwords are never present in a backup (export strips them). For users
+ * that existed before the import we preserve their current hash; for users
+ * introduced by the backup we assign a fresh random password and log it
+ * once, forcing the operator to reset it — this prevents the old hard-coded
+ * "TempPassword123!" fallback from being used to log in to a newly-created
+ * account.
+ *
+ * The caller is responsible for validating `data` with validateBackup()
+ * before calling this function.
+ */
+export function importData(data: {
+  users: Array<{ id: string; username: string; name: string; role: 'admin' | 'user' }>;
+  links: Array<{
+    id: string;
+    name: string;
+    subtitle: string;
+    url: string;
+    is_public: boolean | number;
+    icon: string;
+  }>;
+  settings?: Record<string, string>;
+}) {
   const db = getDb();
-  
-  // Start transaction
-  db.prepare('BEGIN TRANSACTION').run();
-  
-  try {
-    // Clear existing data
+
+  // Snapshot existing password hashes so we can preserve them.
+  const existingUsers = getAllUsers();
+  const passwordMap = new Map(existingUsers.map((u) => [u.username, u.password]));
+
+  const tx = db.transaction(() => {
     db.prepare('DELETE FROM users').run();
     db.prepare('DELETE FROM links').run();
     db.prepare('DELETE FROM settings').run();
-    
-    // Import users (keeping existing passwords)
-    const existingUsers = getAllUsers();
-    const passwordMap = new Map(existingUsers.map(u => [u.username, u.password]));
-    
-    data.users.forEach((user: any) => {
-      const password = passwordMap.get(user.username) || bcrypt.hashSync('TempPassword123!', 10);
-      db.prepare(`
-        INSERT INTO users (id, username, password, name, role)
-        VALUES (?, ?, ?, ?, ?)
-      `).run(user.id, user.username, password, user.name, user.role);
-    });
-    
-    // Import links
-    data.links.forEach((link: any) => {
-      db.prepare(`
-        INSERT INTO links (id, name, subtitle, url, is_public, icon)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run(link.id, link.name, link.subtitle, link.url, link.is_public ? 1 : 0, link.icon);
-    });
-    
-    // Import settings
-    if (data.settings) {
-      Object.entries(data.settings).forEach(([key, value]) => {
-        db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(key, value as string);
-      });
+
+    const newCredentials: Array<{ username: string; password: string }> = [];
+
+    for (const user of data.users) {
+      let password = passwordMap.get(user.username);
+      if (!password) {
+        const generated = strongRandomPassword();
+        password = bcrypt.hashSync(generated, BCRYPT_ROUNDS);
+        newCredentials.push({ username: user.username, password: generated });
+      }
+      db.prepare(
+        `INSERT INTO users (id, username, password, name, role)
+         VALUES (?, ?, ?, ?, ?)`
+      ).run(user.id, user.username, password, user.name, user.role);
     }
-    
-    db.prepare('COMMIT').run();
-  } catch (error) {
-    db.prepare('ROLLBACK').run();
-    throw error;
+
+    for (const link of data.links) {
+      db.prepare(
+        `INSERT INTO links (id, name, subtitle, url, is_public, icon)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      ).run(
+        link.id,
+        link.name,
+        link.subtitle,
+        link.url,
+        link.is_public ? 1 : 0,
+        link.icon
+      );
+    }
+
+    if (data.settings) {
+      for (const [key, value] of Object.entries(data.settings)) {
+        db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(
+          key,
+          value
+        );
+      }
+    }
+
+    return newCredentials;
+  });
+
+  const created = tx();
+
+  if (created.length > 0) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[backup import] Generated new random passwords for users missing from ' +
+        'the previous DB:\n' +
+        created.map((c) => `  - ${c.username}: ${c.password}`).join('\n') +
+        '\nCommunicate them securely and force a reset on first login.'
+    );
   }
 }
