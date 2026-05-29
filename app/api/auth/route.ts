@@ -73,9 +73,13 @@ export async function POST(request: NextRequest) {
       name: user.name,
     });
 
+    // Use secure flag only when the app is actually served over HTTPS.
+    // NODE_ENV=production alone is not enough — local/intranet deploys may
+    // run on plain HTTP even in production mode.
+    const isHttps = (process.env.NEXTAUTH_URL ?? '').startsWith('https://');
     cookies().set('auth-token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isHttps,
       sameSite: 'strict',
       path: '/',
       maxAge: 60 * 60 * 24, // 24 hours

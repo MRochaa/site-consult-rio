@@ -24,7 +24,7 @@ const securityHeaders = [
       "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
-      "img-src 'self' data: blob: https://blob.v0.dev",
+      "img-src 'self' data: blob: https://blob.v0.dev https://hebbkx1anhila5yf.public.blob.vercel-storage.com",
       "connect-src 'self'",
       "frame-ancestors 'none'",
       "form-action 'self'",
@@ -37,7 +37,7 @@ const securityHeaders = [
 const nextConfig = {
   output: 'standalone',
   images: {
-    domains: ['blob.v0.dev'],
+    domains: ['blob.v0.dev', 'hebbkx1anhila5yf.public.blob.vercel-storage.com'],
     unoptimized: true,
   },
   compress: true,
